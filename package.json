@@ -8,7 +8,10 @@
     "build": "echo 'No build step required'",
     "start": "echo 'Use vercel dev for local development'"
   },
-  "dependencies": {},
+  "dependencies": {
+    "@vercel/analytics": "^1.5.0",
+    "@vercel/speed-insights": "^1.2.0"
+  },
   "engines": {
     "node": ">=16.0.0"
   }

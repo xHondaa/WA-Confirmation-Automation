@@ -1,4 +1,6 @@
 const crypto = require('crypto');
+import { Analytics } from "@vercel/analytics/next"
+import { SpeedInsights } from "@vercel/speed-insights/next"
 
 // Your WhatsApp Business API credentials (set in Vercel dashboard)
 const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
