@@ -1,62 +1,48 @@
-// api/whatsapp.js
+import { openDB } from '../../lib/db.js';
+
 export default async function handler(req, res) {
   const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
 
-  // WhatsApp webhook verification
   if (req.method === 'GET') {
-    const mode = req.query['hub.mode'];
-    const token = req.query['hub.verify_token'];
-    const challenge = req.query['hub.challenge'];
-
-    if (mode && token) {
-      if (mode === 'subscribe' && token === VERIFY_TOKEN) {
-        console.log('WEBHOOK_VERIFIED');
-        res.status(200).send(challenge);
-      } else {
-        res.status(403).send('Verification failed');
-      }
-    } else {
-      res.status(400).send('Missing mode or token');
+    const { 'hub.mode': mode, 'hub.verify_token': token, 'hub.challenge': challenge } = req.query;
+    if (mode && token && mode === 'subscribe' && token === VERIFY_TOKEN) {
+      return res.status(200).send(challenge);
     }
-    return;
+    return res.status(403).send('Verification failed');
   }
 
-  // Handle incoming messages
   if (req.method === 'POST') {
     try {
       const body = req.body;
+      const db = await openDB();
+      await db.run(
+        'CREATE TABLE IF NOT EXISTS messages (id INTEGER PRIMARY KEY AUTOINCREMENT, sender TEXT, message TEXT, timestamp TEXT)'
+      );
 
-      // Make sure it's a WhatsApp message
-      if (
-        body.object === 'whatsapp_business_account' &&
-        body.entry &&
-        body.entry.length > 0
-      ) {
-        body.entry.forEach((entry) => {
-          const changes = entry.changes;
-          changes.forEach((change) => {
-            const messages = change.value.messages;
-            if (messages) {
-              messages.forEach((message) => {
-                const from = message.from; // phone number of sender
-                const msgBody = message.text?.body || '';
-                console.log(`Received message from ${from}: ${msgBody}`);
-                // You can add your logic here to respond or process the message
-              });
+      if (body.object === 'whatsapp_business_account' && body.entry?.length) {
+        for (const entry of body.entry) {
+          for (const change of entry.changes) {
+            for (const message of change.value.messages || []) {
+              const from = message.from;
+              const msgBody = message.text?.body || '';
+              await db.run('INSERT INTO messages (sender, message, timestamp) VALUES (?, ?, ?)', [
+                from,
+                msgBody,
+                new Date().toISOString()
+              ]);
+              console.log(`Saved message from ${from}`);
             }
-          });
-        });
+          }
+        }
       }
 
-      res.sendStatus(200); // Acknowledge receipt
+      return res.sendStatus(200);
     } catch (error) {
-      console.error('Error handling webhook:', error);
-      res.sendStatus(500);
+      console.error(error);
+      return res.sendStatus(500);
     }
-    return;
   }
 
-  // Reject other methods
   res.setHeader('Allow', ['GET', 'POST']);
   res.status(405).end(`Method ${req.method} Not Allowed`);
 }
