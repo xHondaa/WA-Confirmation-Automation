@@ -5,7 +5,7 @@ module.exports = (req, res) => {
   const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN;
 
   const mode = req.query['hub.mode'];
-  const token = req.query['hub.verify_token'];
+  const token = 'WhatsappTokenVercel';
   const challenge = req.query['hub.challenge'];
 
   if (mode === 'subscribe' && token === VERIFY_TOKEN) {
