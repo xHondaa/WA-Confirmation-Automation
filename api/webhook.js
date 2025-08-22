@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
 const PHONE_NUMBER_ID = process.env.PHONE_NUMBER_ID;
 const SHOPIFY_WEBHOOK_SECRET = process.env.SHOPIFY_WEBHOOK_SECRET;
+const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
 
 // Verify Shopify webhook
 const verifyShopifyWebhook = (data, hmacHeader) => {
@@ -100,8 +101,20 @@ export default async function handler(req, res) {
     return;
   }
 
-  // GET request - health check
+  // GET request - health check OR WhatsApp webhook verification
   if (req.method === 'GET') {
+    // Check if this is WhatsApp webhook verification
+    const mode = req.query['hub.mode'];
+    const token = req.query['hub.verify_token'];
+    const challenge = req.query['hub.challenge'];
+
+    if (mode === 'subscribe' && token === VERIFY_TOKEN) {
+      console.log('WhatsApp webhook verified successfully');
+      res.status(200).send(challenge);
+      return;
+    }
+
+    // Regular health check
     res.status(200).json({ 
       status: 'WhatsApp Webhook Server Running on Vercel',
       timestamp: new Date().toISOString()
@@ -116,7 +129,12 @@ export default async function handler(req, res) {
       const body = req.body;
       const rawBody = JSON.stringify(body);
 
-      console.log('Webhook received for order:', body.name);
+      console.log('=== WEBHOOK RECEIVED ===');
+      console.log('Order:', body.name);
+      console.log('Customer:', body.customer?.first_name, body.customer?.last_name);
+      console.log('Phone:', body.customer?.phone);
+      console.log('Total:', body.total_price, body.currency);
+      console.log('Headers:', JSON.stringify(req.headers, null, 2));
 
       // Verify webhook authenticity
       if (SHOPIFY_WEBHOOK_SECRET && !verifyShopifyWebhook(rawBody, hmacHeader)) {
@@ -136,19 +154,33 @@ export default async function handler(req, res) {
       const message = createConfirmationMessage(body);
 
       // Send WhatsApp message
+      console.log('=== SENDING WHATSAPP MESSAGE ===');
+      console.log('To:', formattedPhone);
+      console.log('Message preview:', message.substring(0, 100) + '...');
+      
       await sendWhatsAppMessage(formattedPhone, message);
       
+      console.log('=== SUCCESS ===');
       console.log(`Confirmation sent to ${formattedPhone} for order ${body.name}`);
       
       res.status(200).json({ 
         message: 'Confirmation sent successfully',
         order: body.name,
-        phone: formattedPhone
+        phone: formattedPhone,
+        timestamp: new Date().toISOString()
       });
 
     } catch (error) {
+      console.error('=== ERROR ===');
       console.error('Webhook processing error:', error);
-      res.status(500).json({ error: 'Internal Server Error' });
+      console.error('Error details:', {
+        message: error.message,
+        stack: error.stack
+      });
+      res.status(500).json({ 
+        error: 'Internal Server Error',
+        timestamp: new Date().toISOString()
+      });
     }
   } else {
     res.status(405).json({ error: 'Method not allowed' });
