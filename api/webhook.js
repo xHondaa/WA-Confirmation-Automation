@@ -1,19 +1,18 @@
-const path = require('path');
+const admin = require('firebase-admin');
+
+// Initialize Firebase Admin once
+if (!admin.apps.length) {
+  const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount)
+  });
+}
+
+const db = admin.firestore();
 
 module.exports = async function handler(req, res) {
   const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
-
-  // Dynamically import lowdb
-  const lowdb = await import('lowdb');
-  const { Low } = lowdb;
-  const JSONFile = lowdb.JSONFile; // Correct way in dynamic import
-
-  const file = path.join(process.cwd(), 'whatsapp.json');
-  const adapter = new JSONFile(file);
-  const db = new Low(adapter);
-
-  await db.read();
-  db.data = db.data || { messages: [] };
 
   // === Webhook verification ===
   if (req.method === 'GET') {
@@ -40,20 +39,30 @@ module.exports = async function handler(req, res) {
             const msgBody = message.text?.body || '';
             const timestamp = new Date().toISOString();
 
-            db.data.messages.push({ from, msgBody, timestamp });
+            // Save message to Firestore
+            await db.collection('whatsappMessages').add({
+              from,
+              msgBody,
+              timestamp
+            });
+
             console.log(`Saved message from ${from}: ${msgBody}`);
           }
         }
       }
-      await db.write();
     }
+
     return res.sendStatus(200);
   }
 
-  // === View stored messages ===
+  // === View stored messages (for debugging) ===
   if (req.method === 'GET' && req.query.showMessages) {
-    await db.read();
-    return res.status(200).json(db.data.messages.reverse());
+    const snapshot = await db.collection('whatsappMessages')
+      .orderBy('timestamp', 'desc')
+      .get();
+
+    const messages = snapshot.docs.map(doc => doc.data());
+    return res.status(200).json(messages);
   }
 
   res.setHeader('Allow', ['GET', 'POST']);
