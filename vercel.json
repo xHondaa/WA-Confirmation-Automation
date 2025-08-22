@@ -1,0 +1,13 @@
+{
+  "functions": {
+    "api/webhook.js": {
+      "maxDuration": 30
+    }
+  },
+  "regions": ["iad1"],
+  "env": {
+    "WHATSAPP_TOKEN": "@whatsapp-token",
+    "PHONE_NUMBER_ID": "@phone-number-id",
+    "SHOPIFY_WEBHOOK_SECRET": "@shopify-webhook-secret"
+  }
+}
