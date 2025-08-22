@@ -12,7 +12,7 @@ if (!admin.apps.length) {
 const db = admin.firestore();
 
 module.exports = async function handler(req, res) {
-  const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
+  const VERIFY_TOKEN = process.env.WHATSAPP_TOKEN;
 
   // === Webhook verification ===
   if (req.method === 'GET') {
