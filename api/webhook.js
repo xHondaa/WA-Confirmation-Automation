@@ -1,32 +1,32 @@
-import { Low } from 'lowdb';
-import { JSONFile } from 'lowdb/node';
-import path from 'path';
+const { Low, JSONFile } = require('lowdb');
+const path = require('path');
 
-const file = path.join(process.cwd(), 'whatsapp.json'); // JSON file in project root
-const adapter = new JSONFile(file);
-const db = new Low(adapter);
-
-// Initialize DB if empty
-await db.read();
-db.data ||= { messages: [] };
-await db.write();
-
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
 
-  // Webhook verification
+  // Setup lowdb
+  const file = path.join(process.cwd(), 'whatsapp.json');
+  const adapter = new JSONFile(file);
+  const db = new Low(adapter);
+
+  // Read DB inside async function
+  await db.read();
+  db.data = db.data || { messages: [] };
+
+  // === Webhook verification ===
   if (req.method === 'GET') {
     const mode = req.query['hub.mode'];
     const token = req.query['hub.verify_token'];
     const challenge = req.query['hub.challenge'];
 
     if (mode && token && mode === 'subscribe' && token === VERIFY_TOKEN) {
+      console.log('WEBHOOK_VERIFIED');
       return res.status(200).send(challenge);
     }
     return res.status(403).send('Verification failed');
   }
 
-  // Receive messages
+  // === Receive messages ===
   if (req.method === 'POST') {
     const body = req.body;
 
@@ -48,12 +48,13 @@ export default async function handler(req, res) {
     return res.sendStatus(200);
   }
 
-  // GET messages
+  // === View stored messages ===
   if (req.method === 'GET' && req.query.showMessages) {
     await db.read();
     return res.status(200).json(db.data.messages.reverse());
   }
 
+  // Reject other methods
   res.setHeader('Allow', ['GET', 'POST']);
   res.status(405).end(`Method ${req.method} Not Allowed`);
-}
+};
