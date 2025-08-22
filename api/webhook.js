@@ -1,7 +1,20 @@
 import { openDB } from '../../lib/db.js';
 
+
 export default async function handler(req, res) {
   const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
+
+    if (req.method === 'GET' && req.query.showMessages) {
+    const db = await openDB();
+    await db.run(
+      'CREATE TABLE IF NOT EXISTS messages (id INTEGER PRIMARY KEY AUTOINCREMENT, sender TEXT, message TEXT, timestamp TEXT)'
+    );
+    const messages = await db.all('SELECT * FROM messages ORDER BY id DESC');
+    return res.status(200).json(messages);
+  }
+
+  res.status(405).end('Method Not Allowed');
+
 
   if (req.method === 'GET') {
     const { 'hub.mode': mode, 'hub.verify_token': token, 'hub.challenge': challenge } = req.query;
