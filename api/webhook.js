@@ -1,9 +1,9 @@
 const admin = require('firebase-admin');
-const axios = require('axios');
 
-// Initialize Firebase Admin SDK
+// Initialize Firebase Admin once
 if (!admin.apps.length) {
   const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+
   admin.initializeApp({
     credential: admin.credential.cert(serviceAccount)
   });
@@ -12,35 +12,23 @@ if (!admin.apps.length) {
 const db = admin.firestore();
 
 module.exports = async function handler(req, res) {
-  const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN;
+  const VERIFY_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN;
 
-  // === GET verification (WhatsApp sends hub.challenge) ===
+  // === Webhook verification ===
   if (req.method === 'GET') {
-    console.log('Received GET request for verification');
-    console.log('Query parameters:', req.query);
-
     const mode = req.query['hub.mode'];
     const token = req.query['hub.verify_token'];
     const challenge = req.query['hub.challenge'];
 
-    console.log('Mode:', mode);
-    console.log('Received token:', token);
-    console.log('Expected token:', VERIFY_TOKEN);
-
-    if (mode === 'subscribe' && token === VERIFY_TOKEN) {
-      console.log('WEBHOOK_VERIFIED ✅');
-      return res.status(200).send(challenge); // must return plain text
-    } else {
-      console.log('WEBHOOK_VERIFICATION_FAILED ❌');
-      return res.status(403).send('Verification failed');
+    if (mode && token && mode === 'subscribe' && token === VERIFY_TOKEN) {
+      console.log('WEBHOOK_VERIFIED');
+      return res.status(200).send(challenge);
     }
+    return res.status(403).send('Verification failed');
   }
 
-  // === POST messages from WhatsApp ===
+  // === Receive messages ===
   if (req.method === 'POST') {
-    console.log('Received POST request (message)');
-    console.log('Body:', JSON.stringify(req.body, null, 2));
-
     const body = req.body;
 
     if (body.object === 'whatsapp_business_account' && body.entry?.length) {
@@ -51,32 +39,14 @@ module.exports = async function handler(req, res) {
             const msgBody = message.text?.body || '';
             const timestamp = new Date().toISOString();
 
-            console.log(`Saving message from ${from}: ${msgBody}`);
-
-            // Save message to Firebase
+            // Save message to Firestore
             await db.collection('whatsappMessages').add({
               from,
               msgBody,
               timestamp
             });
 
-            // Optional: auto-reply
-            /*
-            const token = process.env.WHATSAPP_ACCESS_TOKEN;
-            const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-
-            await axios.post(
-              `https://graph.facebook.com/v17.0/${phoneNumberId}/messages`,
-              {
-                messaging_product: "whatsapp",
-                to: from,
-                text: { body: "Received your message!" }
-              },
-              {
-                headers: { Authorization: `Bearer ${token}` }
-              }
-            );
-            */
+            console.log(`Saved message from ${from}: ${msgBody}`);
           }
         }
       }
@@ -85,7 +55,7 @@ module.exports = async function handler(req, res) {
     return res.sendStatus(200);
   }
 
-  // === Optional: view stored messages for debugging ===
+  // === View stored messages (for debugging) ===
   if (req.method === 'GET' && req.query.showMessages) {
     const snapshot = await db.collection('whatsappMessages')
       .orderBy('timestamp', 'desc')
