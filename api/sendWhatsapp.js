@@ -6,7 +6,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { to, templateName, variables = [] } = req.body;
+    const { to, templateName, variables = {} } = req.body;
 
     if (!to || !templateName) {
       return res.status(400).json({ error: "Missing required fields: 'to' or 'templateName'" });
@@ -28,9 +28,10 @@ export default async function handler(req, res) {
         components: [
           {
               type: "body",
-              parameters: variables.map(v => ({
+              parameters: Object.entries(variables).map(([key, value]) => ({
                   type: "text",
-                  text: String(v) // ensure always string
+                  parameter_name: key, // ✅ must match template param (ex: "name", "orderid")
+                  text: value,
               }))
           },
         ],
