@@ -21,7 +21,7 @@ export default async function handler(req, res) {
     // Send WhatsApp confirmation template
     await sendWhatsappTemplate(
       phone,
-      "order_confirmation_test",
+      "order_confirmation",
       [customer.first_name, String(order.order_number)],
       ["confirm", "cancel"]
     );
