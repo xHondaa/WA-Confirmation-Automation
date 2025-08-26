@@ -27,8 +27,11 @@ export default async function handler(req, res) {
         language: { code: "en" },
         components: [
           {
-            type: "body",
-            parameters: variables.map((v) => ({ type: "text", text: v })),
+              type: "body",
+              parameters: variables.map(v => ({
+                  type: "text",
+                  text: String(v) // ensure always string
+              }))
           },
         ],
       },
