@@ -1,5 +1,4 @@
-import db from "../firebase.js";
-import { collection, addDoc } from "firebase/firestore";
+import db from "../firebaseAdmin.js";
 import { sendWhatsappTemplate } from "./sendWhatsapp.js";
 
 export default async function handler(req, res) {
@@ -29,8 +28,8 @@ export default async function handler(req, res) {
         // Extract order number
         const orderNumber = order.order_number || order.id;
 
-        // Save to Firebase
-        await addDoc(collection(db, "orders"), {
+        // ✅ Save to Firestore with Admin SDK
+        await db.collection("orders").add({
             orderId: order.id,
             name: fullName,
             phone,
