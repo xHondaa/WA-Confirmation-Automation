@@ -9,7 +9,7 @@ export default async function handler(req, res) {
     const order = req.body; // Shopify sends JSON
     const customer = order.customer;
     const phone = customer.phone || customer.default_address?.phone;
-	const isProd = process.env.MODE === "production";
+	const testNumber = process.env.TEST_PHONE;	
 
 
     // Save to Firebase
@@ -19,7 +19,7 @@ export default async function handler(req, res) {
       phone,
       status: "pending"
     });
-	if (isProd) {
+	if (phone === testNumber) {
 		// Send WhatsApp confirmation template
 		await sendWhatsappTemplate(
 		  phone,
