@@ -1,0 +1,6 @@
+{
+  "routes": [
+    { "src": "/api/shopify-webhook", "dest": "/api/shopifyWebhook.js" },
+    { "src": "/api/whatsapp-webhook", "dest": "/api/whatsappWebhook.js" }
+  ]
+}

@@ -1,3 +1,0 @@
-git add vercel.json
-git commit -m "Some Change"
-git push origin master

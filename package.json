@@ -1,20 +1,15 @@
 {
-  "name": "whatsapp-shopify-webhook-vercel",
+  "name": "whatsapp-shopify-integration",
   "version": "1.0.0",
-  "description": "WhatsApp Business API integration with Shopify webhooks on Vercel",
-  "main": "api/webhook.js",
+  "main": "index.js",
+  "type": "module",
   "scripts": {
     "dev": "vercel dev",
-    "build": "echo 'No build step required'",
-    "start": "echo 'Use vercel dev for local development'"
+    "start": "node index.js"
   },
   "dependencies": {
-    "@vercel/analytics": "^1.5.0",
-    "@vercel/speed-insights": "^1.2.0",
-    "axios": "^1.11.0",
-    "firebase-admin": "^13.4.0"
-  },
-  "engines": {
-    "node": ">=16.0.0"
+    "axios": "^1.6.7",
+    "express": "^4.18.3",
+    "firebase": "^10.7.1"
   }
 }
