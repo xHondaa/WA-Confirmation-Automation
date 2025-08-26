@@ -9,6 +9,8 @@ export default async function handler(req, res) {
     const order = req.body; // Shopify sends JSON
     const customer = order.customer;
     const phone = customer.phone || customer.default_address?.phone;
+	const isProd = process.env.MODE === "production";
+
 
     // Save to Firebase
     await addDoc(collection(db, "orders"), {
@@ -17,15 +19,17 @@ export default async function handler(req, res) {
       phone,
       status: "pending"
     });
-
-    // Send WhatsApp confirmation template
-    await sendWhatsappTemplate(
-      phone,
-      "order_confirmation",
-      [customer.first_name, String(order.order_number)],
-      ["confirm", "cancel"]
-    );
-
+	if (isProd) {
+		// Send WhatsApp confirmation template
+		await sendWhatsappTemplate(
+		  phone,
+		  "order_confirmation",
+		  [customer.first_name, String(order.order_number)],
+		  ["confirm", "cancel"]
+		);
+	}else {
+	  console.log("DEV MODE: Skipping WhatsApp send for", phone);
+	}
     res.status(200).send("OK");
   } catch (error) {
     console.error(error);
