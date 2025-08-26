@@ -1,7 +1,7 @@
 import axios from "axios";
 
 async function sendWhatsappTemplate(to, templateName, variables) {
-  const url = `https://graph.facebook.com/v19.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`;
+  const url = `https://graph.facebook.com/v19.0/${process.env.WHATSAPP_PHONE_ID}/messages`;
 
   const data = {
     messaging_product: "whatsapp",
