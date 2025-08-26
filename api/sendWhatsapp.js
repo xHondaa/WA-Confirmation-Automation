@@ -24,7 +24,7 @@ export default async function handler(req, res) {
       type: "template",
       template: {
         name: templateName,
-        language: { code: "en_US" },
+        language: { code: "en" },
         components: [
           {
             type: "body",
@@ -39,7 +39,7 @@ export default async function handler(req, res) {
 
     const response = await axios.post(url, data, {
       headers: {
-        Authorization: `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`,
+        Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`,
         "Content-Type": "application/json",
       },
     });
