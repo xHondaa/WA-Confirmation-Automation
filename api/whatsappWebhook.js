@@ -28,7 +28,7 @@ export default async function handler(req, res) {
       }  else if (buttonPayload === "cancel") {
 			try {
 				await axios.post(
-				  `https://graph.facebook.com/v17.0/${process.env.WHATSAPP_PHONE_ID}/messages`,
+				  `https://graph.facebook.com/v22.0/${process.env.WHATSAPP_PHONE_ID}/messages`,
 				  {
 					messaging_product: "whatsapp",
 					to: process.env.SUPPORT_PHONE,
