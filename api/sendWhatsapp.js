@@ -1,16 +1,25 @@
 import axios from "axios";
 
 // Order parameters explicitly to match the template placeholders
+// Include parameter_name for Meta named variables support
 function getBodyParameters(templateName, variables) {
     if (templateName === "order_confirmation" || templateName === "order_confirmation_ar") {
         // Body placeholders appear in this order in your template:
         // Hello {{name}}!\nOrder: #BUT{{orderid}}\nShipping Address: {{address}}\nTotal Price: {{price}} EGP
-        // Hence, the correct parameter order is: name, orderid, address, price
+        // Hence, the correct named parameters array in this order:
         const keys = ["name", "orderid", "address", "price"];
-        return keys.map((k) => ({ type: "text", text: variables[k] || "" }));
+        return keys.map((k) => ({
+            type: "text",
+            parameter_name: k,
+            text: variables[k] != null ? String(variables[k]) : "",
+        }));
     }
-    // Fallback: preserve prior behavior (positional order of provided values)
-    return Object.values(variables).map((value) => ({ type: "text", text: value }));
+    // Fallback: send all provided variables as named parameters in given object order
+    return Object.entries(variables).map(([key, value]) => ({
+        type: "text",
+        parameter_name: key,
+        text: value != null ? String(value) : "",
+    }));
 }
 
 // Map template name to its language code (default to English)
