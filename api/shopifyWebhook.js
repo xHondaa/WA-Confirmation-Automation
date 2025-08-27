@@ -9,8 +9,18 @@ export default async function handler(req, res) {
         const customer = order.customer || {};
 
         // Extract customer name
-        const firstName = customer.first_name || order.name || "Customer";
-        const lastName = customer.last_name || "";
+        const firstName =
+            customer.first_name ||
+            order.billing_address?.first_name ||
+            order.shipping_address?.first_name ||
+            "Customer";
+
+        const lastName =
+            customer.last_name ||
+            order.billing_address?.last_name ||
+            order.shipping_address?.last_name ||
+            "";
+
         const fullName = `${firstName} ${lastName}`.trim();
 
         // Extract phone (from customer.phone OR default_address.phone OR order.phone)
@@ -18,7 +28,10 @@ export default async function handler(req, res) {
             customer.phone ||
             customer.default_address?.phone ||
             order.phone ||
+            order.billing_address?.phone ||
+            order.shipping_address?.phone ||
             null;
+
 
         if (!phone) {
             console.warn("⚠️ No phone number found for order", order.id);
@@ -26,7 +39,7 @@ export default async function handler(req, res) {
         }
 
         // Extract order number
-        const orderNumber = order.order_number || order.id;
+        const orderNumber = order.order_number;
 
         // ✅ Save to Firestore with Admin SDK
         await db.collection("orders").add({
