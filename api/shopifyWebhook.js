@@ -75,6 +75,8 @@ await db.collection(COL).add({
     confirmation_sent_at: new Date(),
     name: fullName,
     order_number: orderNumber,
+    address: address || "N/A",
+    price: price || "0",
 });
 
         // Build variables for WhatsApp template

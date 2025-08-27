@@ -48,11 +48,11 @@ export default async function handler(req, res) {
 
                     const docData = snap.empty ? {} : (snap.docs[0].data() || {});
 
-                    const variables = {
+const variables = {
                         orderid: String(docData.order_number || ""),
                         name: (docData.name?.split(" ")[0] || docData.name || "Customer"),
-                        address: docData.address || "",
-                        price: docData.price || "",
+                        address: (docData.address && String(docData.address).trim()) || "N/A",
+                        price: (docData.price != null && String(docData.price).trim() !== "" ? String(docData.price) : "0"),
                     };
 
                     await sendWhatsappTemplate(phone_e164, "order_confirmation_ar", variables);
@@ -94,11 +94,11 @@ export default async function handler(req, res) {
                         .get();
 
                     const docData = snap.empty ? {} : (snap.docs[0].data() || {});
-                    const variables = {
+const variables = {
                         orderid: String(docData.order_number || ""),
                         name: (docData.name?.split(" ")[0] || docData.name || "Customer"),
-                        address: docData.address || "",
-                        price: docData.price || "",
+                        address: (docData.address && String(docData.address).trim()) || "N/A",
+                        price: (docData.price != null && String(docData.price).trim() !== "" ? String(docData.price) : "0"),
                     };
 
                     await sendWhatsappTemplate(phone_e164, "order_confirmation", variables);
@@ -136,11 +136,11 @@ export default async function handler(req, res) {
                     });
 
                     // Build variables for shipping template (reuse same fields)
-                    const variables = {
+const variables = {
                         orderid: String(docData.order_number || ""),
                         name: (docData.name?.split(" ")[0] || docData.name || "Customer"),
-                        address: docData.address || "",
-                        price: docData.price || "",
+                        address: (docData.address && String(docData.address).trim()) || "N/A",
+                        price: (docData.price != null && String(docData.price).trim() !== "" ? String(docData.price) : "0"),
                     };
 
                     const shippingTemplate = language === "ar" ? "order_shipping_ar" : "order_shipping_en";
