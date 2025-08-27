@@ -1,7 +1,6 @@
 import db from "../firebaseAdmin.js"; // ✅ Admin SDK
 import axios from "axios";
 import { updateShopifyOrderTag } from "./updateShopify.js";
-import { sendWhatsappTemplate } from "./sendWhatsapp.js";
 
 export default async function handler(req, res) {
     if (req.method === "GET") {
@@ -23,7 +22,16 @@ export default async function handler(req, res) {
             if (!message) return res.status(200).send("No messages");
 
             const from = message.from;
-            const buttonPayload = message.button?.payload;
+
+            // 🔹 Determine button action
+            let buttonPayload = message.button?.payload;
+
+            // Fallback: sometimes the button text comes in message.text.body
+            if (!buttonPayload && message.type === "text") {
+                const text = message.text?.body?.trim().toLowerCase();
+                if (text === "confirm") buttonPayload = "confirm";
+                if (text === "cancel") buttonPayload = "cancel";
+            }
 
             if (buttonPayload === "confirm") {
                 // Update Shopify order tag
@@ -38,9 +46,7 @@ export default async function handler(req, res) {
                             messaging_product: "whatsapp",
                             to: process.env.SUPPORT_PHONE,
                             type: "text",
-                            text: {
-                                body: `Order cancellation request from customer ${from}.` // 🔹 Placeholder
-                            }
+                            text: { body: `Order cancellation request from customer ${from}.` }
                         },
                         {
                             headers: {
@@ -53,12 +59,15 @@ export default async function handler(req, res) {
                 } catch (error) {
                     console.error("❌ Error sending cancel message:", error.response?.data || error);
                 }
+            } else {
+                console.log(`ℹ️ Received message from ${from} but no recognized button clicked`);
             }
 
-            // Optional: log to Firestore (if you want to keep a record of button responses)
+            // Optional: log button response to Firestore
             await db.collection("whatsappInteractions").add({
                 customer: from,
-                button: buttonPayload,
+                button: buttonPayload || message.text?.body || null,
+                rawMessage: message,
                 timestamp: new Date().toISOString()
             });
 
@@ -69,6 +78,5 @@ export default async function handler(req, res) {
         }
     }
 
-    // Method not allowed
     return res.status(405).send("Method not allowed");
 }
