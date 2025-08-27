@@ -1,6 +1,13 @@
 import db from "../firebaseAdmin.js";
 import { sendWhatsappTemplate } from "./sendWhatsapp.js";
 
+// Normalize phone to E.164-like format: keep leading + and digits only
+function normalizeE164(raw) {
+    if (!raw) return raw;
+    const s = String(raw).replace(/[^\d+]/g, "");
+    return s.startsWith("+") ? s : `+${s}`;
+}
+
 export default async function handler(req, res) {
     if (req.method !== "POST") return res.status(405).send("Method not allowed");
 
@@ -41,14 +48,17 @@ export default async function handler(req, res) {
         // Extract order number
         const orderNumber = order.order_number;
 
-        // ✅ Save to Firestore with Admin SDK
-        await db.collection("orders").add({
-            orderId: order.id,
-            OrderNum: orderNumber,
-            name: fullName,
-            phone,
-            status: "pending",
-        });
+// ✅ Save to Firestore with Admin SDK (confirmations collection)
+const COL = process.env.CONFIRMATIONS_COLLECTION || "confirmations";
+const phone_e164 = normalizeE164(phone);
+await db.collection(COL).add({
+    phone_e164,
+    order_id: order.id,
+    status: "pending",
+    confirmation_sent_at: new Date(),
+    name: fullName,
+    order_number: orderNumber,
+});
 
         // Build variables for WhatsApp template
         const variables = {
