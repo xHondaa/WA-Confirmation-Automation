@@ -17,27 +17,22 @@ export default async function handler(req, res) {
     if (req.method === "POST") {
         try {
             const data = req.body;
-            const message = data?.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
+            console.log(data);
 
+            const message = data?.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
             if (!message) return res.status(200).send("No messages");
 
+
             const from = message.from;
-
             // 🔹 Determine button action
-            let buttonPayload = message.button?.payload;
+            let userInput = message.button?.payload || message.text?.body;
 
-            // Fallback: sometimes the button text comes in message.text.body
-            if (!buttonPayload && message.type === "text") {
-                const text = message.text?.body?.trim().toLowerCase();
-                if (text === "confirm") buttonPayload = "confirm";
-                if (text === "cancel") buttonPayload = "cancel";
-            }
-
-            if (buttonPayload === "confirm") {
+            userInput = userInput.trim().toLowerCase();
+            if (userInput === "confirm") {
                 // Update Shopify order tag
                 await updateShopifyOrderTag(from, "confirmed");
                 console.log(`✅ Order confirmed for customer ${from}`);
-            } else if (buttonPayload === "cancel") {
+            } else if (userInput === "cancel") {
                 // Send alert to support
                 try {
                     await axios.post(
@@ -66,7 +61,7 @@ export default async function handler(req, res) {
             // Optional: log button response to Firestore
             await db.collection("whatsappInteractions").add({
                 customer: from,
-                button: buttonPayload || message.text?.body || null,
+                button: userInput,
                 rawMessage: message,
                 timestamp: new Date().toISOString()
             });
