@@ -14,6 +14,15 @@ function getBodyParameters(templateName, variables) {
             text: variables[k] != null ? String(variables[k]) : "",
         }));
     }
+    if (templateName === "order_shipping_en" || templateName === "order_shipping_ar") {
+        // Shipping templates currently only use {{name}} as a named variable per your definition
+        const keys = ["name"];
+        return keys.map((k) => ({
+            type: "text",
+            parameter_name: k,
+            text: variables[k] != null ? String(variables[k]) : "",
+        }));
+    }
     // Fallback: send all provided variables as named parameters in given object order
     return Object.entries(variables).map(([key, value]) => ({
         type: "text",
@@ -24,8 +33,9 @@ function getBodyParameters(templateName, variables) {
 
 // Map template name to its language code (default to English)
 function getLanguageForTemplate(templateName) {
-    if (/_ar$/i.test(templateName)) return "ar";
-    return "en";
+    // Use the exact locale used in your template registrations
+    if (/_ar$/i.test(templateName)) return "ar_EG"; // e.g., order_confirmation_ar, order_shipping_ar
+    return "en"; // your English templates are registered with "en"
 }
 
 // Header parameters for templates that have a named variable in the header
