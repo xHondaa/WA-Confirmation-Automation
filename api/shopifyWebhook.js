@@ -44,6 +44,7 @@ export default async function handler(req, res) {
         // ✅ Save to Firestore with Admin SDK
         await db.collection("orders").add({
             orderId: order.id,
+            OrderNum: orderNumber,
             name: fullName,
             phone,
             status: "pending",
