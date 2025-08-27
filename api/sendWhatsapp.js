@@ -2,14 +2,12 @@ import axios from "axios";
 
 // Order parameters explicitly to match the template placeholders
 function getBodyParameters(templateName, variables) {
-    if (templateName === "order_confirmation") {
-        // If Meta returns a "parameter count mismatch" error, include orderid twice by using:
-        // const keys = ["orderid", "name", "orderid", "address", "price"];
-        const keys = ["orderid", "name", "address", "price"];
-        return keys.map((k) => ({
-            type: "text",
-            text: variables[k] || "",
-        }));
+    if (templateName === "order_confirmation" || templateName === "order_confirmation_ar") {
+        // Body placeholders appear in this order in your template:
+        // Hello {{name}}!\nOrder: #BUT{{orderid}}\nShipping Address: {{address}}\nTotal Price: {{price}} EGP
+        // Hence, the correct parameter order is: name, orderid, address, price
+        const keys = ["name", "orderid", "address", "price"];
+        return keys.map((k) => ({ type: "text", text: variables[k] || "" }));
     }
     // Fallback: preserve prior behavior (positional order of provided values)
     return Object.values(variables).map((value) => ({ type: "text", text: value }));

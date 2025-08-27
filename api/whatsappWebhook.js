@@ -18,8 +18,6 @@ export default async function handler(req, res) {
     if (req.method === "POST") {
         try {
             const data = req.body;
-            console.log(data);
-
             const message = data?.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
             if (!message) return res.status(200).send("No messages");
 
