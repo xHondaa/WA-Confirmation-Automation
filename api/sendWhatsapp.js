@@ -28,9 +28,31 @@ function getLanguageForTemplate(templateName) {
     return "en";
 }
 
+// Header parameters for templates that have a named variable in the header
+function getHeaderParameters(templateName, variables) {
+    // Your template shows a named header variable: #BUT{{orderid}}
+    if (templateName === "order_confirmation" || templateName === "order_confirmation_ar") {
+        return [
+            {
+                type: "text",
+                parameter_name: "orderid",
+                text: variables.orderid != null ? String(variables.orderid) : "",
+            },
+        ];
+    }
+    return [];
+}
+
 // ✅ Exported function for sending WhatsApp templates
 export async function sendWhatsappTemplate(to, templateName, variables = {}) {
     const url = `https://graph.facebook.com/v22.0/${process.env.WHATSAPP_PHONE_ID}/messages`;
+
+    const components = [];
+    const headerParams = getHeaderParameters(templateName, variables);
+    if (headerParams.length > 0) {
+        components.push({ type: "header", parameters: headerParams });
+    }
+    components.push({ type: "body", parameters: getBodyParameters(templateName, variables) });
 
     const data = {
         messaging_product: "whatsapp",
@@ -39,12 +61,7 @@ export async function sendWhatsappTemplate(to, templateName, variables = {}) {
         template: {
             name: templateName,
             language: { code: getLanguageForTemplate(templateName) },
-            components: [
-                {
-                    type: "body",
-                    parameters: getBodyParameters(templateName, variables),
-                },
-            ],
+            components,
         },
     };
 
