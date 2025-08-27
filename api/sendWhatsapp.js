@@ -1,5 +1,26 @@
 import axios from "axios";
 
+// Order parameters explicitly to match the template placeholders
+function getBodyParameters(templateName, variables) {
+    if (templateName === "order_confirmation") {
+        // If Meta returns a "parameter count mismatch" error, include orderid twice by using:
+        // const keys = ["orderid", "name", "orderid", "address", "price"];
+        const keys = ["orderid", "name", "address", "price"];
+        return keys.map((k) => ({
+            type: "text",
+            text: variables[k] || "",
+        }));
+    }
+    // Fallback: preserve prior behavior (positional order of provided values)
+    return Object.values(variables).map((value) => ({ type: "text", text: value }));
+}
+
+// Map template name to its language code (default to English)
+function getLanguageForTemplate(templateName) {
+    if (/_ar$/i.test(templateName)) return "ar";
+    return "en";
+}
+
 // ✅ Exported function for sending WhatsApp templates
 export async function sendWhatsappTemplate(to, templateName, variables = {}) {
     const url = `https://graph.facebook.com/v22.0/${process.env.WHATSAPP_PHONE_ID}/messages`;
@@ -10,15 +31,11 @@ export async function sendWhatsappTemplate(to, templateName, variables = {}) {
         type: "template",
         template: {
             name: templateName,
-            language: { code: "en" },
+            language: { code: getLanguageForTemplate(templateName) },
             components: [
                 {
                     type: "body",
-                    parameters: Object.entries(variables).map(([key, value]) => ({
-                        type: "text",
-                        parameter_name: key, // ✅ named params ("name", "orderid")
-                        text: value,
-                    })),
+                    parameters: getBodyParameters(templateName, variables),
                 },
             ],
         },

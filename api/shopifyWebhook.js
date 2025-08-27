@@ -48,6 +48,23 @@ export default async function handler(req, res) {
         // Extract order number
         const orderNumber = order.order_number;
 
+        // Build address string (fallback to billing if shipping is missing)
+        const addrSrc = order.shipping_address || order.billing_address || {};
+        const addressParts = [
+            addrSrc.address1,
+            addrSrc.address2,
+            addrSrc.city,
+            addrSrc.province || addrSrc.region,
+            addrSrc.zip || addrSrc.postal_code,
+            addrSrc.country
+        ].filter(Boolean);
+        const address = addressParts.join(", ");
+
+        // Total price as a string (template already appends "EGP")
+        const price = String(order.current_total_price || order.total_price || "");
+
+
+
 // ✅ Save to Firestore with Admin SDK (confirmations collection)
 const COL = process.env.CONFIRMATIONS_COLLECTION || "confirmations";
 const phone_e164 = normalizeE164(phone);
@@ -62,8 +79,10 @@ await db.collection(COL).add({
 
         // Build variables for WhatsApp template
         const variables = {
-            name: firstName,
-            orderid: String(orderNumber),
+            orderid: String(orderNumber),   // used in "#BUT{{orderid}}" and "Order: #BUT{{orderid}}"
+            name: firstName,                // used in "Hello {{name}}!"
+            address,                        // used in "Shipping Address: {{address}}"
+            price                           // used in "Total Price: {{price}} EGP"
         };
 
         const isProd = process.env.MODE === "production";
