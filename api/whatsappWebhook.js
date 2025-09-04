@@ -304,11 +304,11 @@ const variables = {
                     const link = supportDigits ? `https://wa.me/${supportDigits}?text=${encodeURIComponent(text)}` : null;
                     const body = link
                         ? (isArabic
-                            ? `أجل طلبك من هنا:\n${link}\nدوس عاللينك عشان تتواصل مع البطة المسؤولة`
-                            : `Reschedule your delivery:\n${link}\n\nTap the link to start the chat.`)
+                            ? `أجل طلبك من هنا:\n${link}`
+                            : `Reschedule your delivery:\n${link}`)
                         : (isArabic
-                            ? "أجل طلبك من هنا:\nسيتواصل معك أحد ممثلي خدمة العملاء قريبًا."
-                            : "Reschedule your delivery:\nA human agent will reach out to you shortly.");
+                            ? "اتواصل معانا على الرقم ده 01113331259."
+                            : "Contact us through this number 01113331259.");
 
                     await sendTextMessageBeta(phone_e164, body, { type: 'text' });
 
@@ -354,11 +354,11 @@ const variables = {
                     const link = supportDigits ? `https://wa.me/${supportDigits}` : null;
                     const body = link
                         ? (isArabic
-                            ? `كلم البط الفني:\n${link}\nدوس عاللنك عشان تتواصل مع البطة المسؤولة`
+                            ? `كلم خدمة العملاء:\n${link}`
                             : `Contact Customer Support:\n${link}\n\nTap the link to start a chat with our team.`)
                         : (isArabic
-                            ? "كلم البط الفني:\nسيتواصل معك أحد ممثلي خدمة العملاء قريبًا."
-                            : "Contact Customer Support:\nA human agent will reach out to you shortly.");
+                            ? "اتواصل معانا على الرقم ده 01113331259."
+                            : "Contact us through this number 01113331259.");
 
                     await sendTextMessageBeta(phone_e164, body, { type: 'text' });
 
