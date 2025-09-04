@@ -14,14 +14,18 @@ function getBodyParameters(templateName, variables) {
             text: variables[k] != null ? String(variables[k]) : "",
         }));
     }
-    if (templateName === "order_shipping_en" || templateName === "order_shipping_ar") {
-        // Shipping templates currently only use {{name}} as a named variable per your definition
+if (templateName === "order_shipping_ar") {
+        // Arabic shipping template uses a single {{name}} variable
         const keys = ["name"];
         return keys.map((k) => ({
             type: "text",
             parameter_name: k,
             text: variables[k] != null ? String(variables[k]) : "",
         }));
+    }
+    if (templateName === "order_shipping_en") {
+        // English shipping template has NO variables → return no body parameters
+        return [];
     }
     // Fallback: send all provided variables as named parameters in given object order
     return Object.entries(variables).map(([key, value]) => ({
@@ -35,7 +39,7 @@ function getBodyParameters(templateName, variables) {
 function getLanguageForTemplate(templateName) {
     // Use the exact locale used in your template registrations
     if (/_ar$/i.test(templateName)) return "ar_EG"; // e.g., order_confirmation_ar, order_shipping_ar
-    return "en"; // your English templates are registered with "en"
+    return "en";
 }
 
 // Header parameters for templates that have a named variable in the header
@@ -53,26 +57,52 @@ function getHeaderParameters(templateName, variables) {
     return [];
 }
 
+const isBeta = () => String(process.env.BETA_TESTING || "").toLowerCase() === "true";
+const getTestPhoneDigits = () => (process.env.TEST_PHONE || "").replace(/[^0-9]/g, "");
+
+async function sendTextRaw(toDigitsVal, body) {
+    if (!toDigitsVal) return;
+    const url = `https://graph.facebook.com/v23.0/${process.env.WHATSAPP_PHONE_ID}/messages`;
+    try {
+        await axios.post(
+            url,
+            { messaging_product: "whatsapp", to: toDigitsVal, type: "text", text: { body } },
+            { headers: { Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`, "Content-Type": "application/json" } }
+        );
+    } catch (e) {
+        console.warn("⚠️ Failed to send beta mirror text:", e.response?.data || e.message);
+    }
+}
+
 // ✅ Exported function for sending WhatsApp templates
 export async function sendWhatsappTemplate(to, templateName, variables = {}) {
-    const url = `https://graph.facebook.com/v22.0/${process.env.WHATSAPP_PHONE_ID}/messages`;
+    const url = `https://graph.facebook.com/v23.0/${process.env.WHATSAPP_PHONE_ID}/messages`;
 
     const components = [];
     const headerParams = getHeaderParameters(templateName, variables);
     if (headerParams.length > 0) {
         components.push({ type: "header", parameters: headerParams });
     }
-    components.push({ type: "body", parameters: getBodyParameters(templateName, variables) });
+    const bodyParams = getBodyParameters(templateName, variables);
+    if (bodyParams.length > 0) {
+        components.push({ type: "body", parameters: bodyParams });
+    }
+
+    const toDigits = (to || '').replace(/[^0-9]/g, "");
+
+    const tmpl = {
+        name: templateName,
+        language: { code: getLanguageForTemplate(templateName) },
+    };
+    if (components.length > 0) {
+        tmpl.components = components;
+    }
 
     const data = {
         messaging_product: "whatsapp",
-        to,
+        to: toDigits,
         type: "template",
-        template: {
-            name: templateName,
-            language: { code: getLanguageForTemplate(templateName) },
-            components,
-        },
+        template: tmpl,
     };
 
     console.log("Outgoing WhatsApp Payload:", JSON.stringify(data, null, 2));
@@ -83,6 +113,33 @@ export async function sendWhatsappTemplate(to, templateName, variables = {}) {
             "Content-Type": "application/json",
         },
     });
+
+    // BETA: mirror outgoing to tester
+    try {
+        if (isBeta()) {
+            const tester = getTestPhoneDigits();
+            if (tester && tester !== toDigits) {
+                const summaryLines = [
+                    "[BETA OUTGOING COPY]",
+                    `To: +${toDigits}`,
+                    variables?.name ? `Name: ${variables.name}` : null,
+                    (variables?.orderid || variables?.order_number) ? `Order: ${variables.orderid || variables.order_number}` : null,
+                    `Template: ${templateName}`,
+                    `Lang: ${getLanguageForTemplate(templateName)}`
+                ].filter(Boolean);
+                await sendTextRaw(tester, summaryLines.join("\n"));
+                const mirrorData = { ...data, to: tester };
+                await axios.post(url, mirrorData, {
+                    headers: {
+                        Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`,
+                        "Content-Type": "application/json",
+                    },
+                });
+            }
+        }
+    } catch (e) {
+        console.warn("⚠️ Failed to mirror outgoing to tester:", e.response?.data || e.message);
+    }
 
     return response.data;
 }
@@ -115,6 +172,6 @@ export default async function handler(req, res) {
         console.error("Error sending WhatsApp:", error.response?.data || error.message);
         return res
             .status(500)
-            .json({ error: "Failed to send WhatsApp message" });
+            .json({ error: "Failed to send WhatsApp message", details: error.response?.data || error.message });
     }
 }

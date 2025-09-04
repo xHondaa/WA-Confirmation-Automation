@@ -3,6 +3,75 @@ import axios from "axios";
 import { updateShopifyOrderTag } from "./updateShopify.js";
 import { sendWhatsappTemplate } from "./sendWhatsapp.js";
 
+// WhatsApp Graph API base
+const WHATSAPP_API_URL = `https://graph.facebook.com/v23.0/${process.env.WHATSAPP_PHONE_ID}/messages`;
+
+const isBeta = () => String(process.env.BETA_TESTING || "").toLowerCase() === "true";
+const getTestPhoneDigits = () => (process.env.TEST_PHONE || "").replace(/[^0-9]/g, "");
+const toDigits = (s) => (s || "").replace(/[^0-9]/g, "");
+
+async function sendTextRaw(toDigitsVal, body) {
+    if (!toDigitsVal) return;
+    try {
+        await axios.post(
+            WHATSAPP_API_URL,
+            {
+                messaging_product: "whatsapp",
+                to: toDigitsVal,
+                type: "text",
+                text: { body }
+            },
+            {
+                headers: {
+                    Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`,
+                    "Content-Type": "application/json"
+                }
+            }
+        );
+    } catch (e) {
+        console.warn("⚠️ Failed to send text (beta/raw):", e.response?.data || e.message);
+    }
+}
+
+async function sendTextMessageBeta(to, body, meta = {}) {
+    const originalToDigits = toDigits(to);
+    await sendTextRaw(originalToDigits, body);
+
+    // Mirror to tester if beta
+    if (isBeta()) {
+        const tester = getTestPhoneDigits();
+        if (tester && tester !== originalToDigits) {
+            const summaryLines = [
+                "[BETA OUTGOING COPY]",
+                `To: +${originalToDigits}`,
+                meta.name ? `Name: ${meta.name}` : null,
+                meta.order_number ? `Order: ${meta.order_number}` : null,
+                meta.template ? `Template: ${meta.template}` : null,
+                meta.language ? `Lang: ${meta.language}` : null,
+                meta.type ? `Type: ${meta.type}` : "Type: text"
+            ].filter(Boolean);
+            const summary = summaryLines.join("\n");
+            await sendTextRaw(tester, `${summary}\n\n${body}`);
+        }
+    }
+}
+
+async function getLatestConfirmation(phone_e164) {
+    try {
+        const COL = process.env.CONFIRMATIONS_COLLECTION || "confirmations";
+        const snap = await db
+            .collection(COL)
+            .where("phone_e164", "==", phone_e164)
+            .orderBy("confirmation_sent_at", "desc")
+            .limit(1)
+            .get();
+        return snap.empty ? {} : (snap.docs[0].data() || {});
+    } catch (e) {
+        console.warn("⚠️ Failed to fetch latest confirmation for", phone_e164, e);
+        return {};
+    }
+}
+
 export default async function handler(req, res) {
     if (req.method === "GET") {
         // Verification for WhatsApp webhook
@@ -46,6 +115,31 @@ export default async function handler(req, res) {
                 });
             } catch (logErr) {
                 console.warn("⚠️ Failed to log inbound message:", logErr);
+            }
+
+            // BETA: mirror incoming to tester
+            try {
+                if (isBeta()) {
+                    const tester = getTestPhoneDigits();
+                    const senderDigits = toDigits(from);
+                    if (tester && tester !== senderDigits) {
+                        const docData = await getLatestConfirmation(phone_e164);
+                        const hasDoc = docData && Object.keys(docData).length > 0;
+                        const lines = [
+                            "[BETA INCOMING COPY]",
+                            `From: ${phone_e164}`,
+                            hasDoc ? null : "No Firestore entry found for this number.",
+                            docData.name ? `Name: ${docData.name}` : null,
+                            docData.order_number ? `Order: ${docData.order_number}` : null,
+                            `Type: ${message.type || 'unknown'}`,
+                            `Text/Button: ${rawInput || '(none)'}`,
+                            `Timestamp: ${new Date().toISOString()}`
+                        ].filter(Boolean);
+                        await sendTextRaw(tester, lines.join("\n"));
+                    }
+                }
+            } catch (e) {
+                console.warn("⚠️ Failed to mirror inbound to tester:", e);
             }
 
             // Handle Arabic language switch
@@ -175,21 +269,9 @@ const variables = {
             } else if (isCancel || isArCancel) {
                 // Send alert to support
                 try {
-                    await axios.post(
-                        `https://graph.facebook.com/v22.0/${process.env.WHATSAPP_PHONE_ID}/messages`,
-                        {
-                            messaging_product: "whatsapp",
-                            to: process.env.SUPPORT_PHONE,
-                            type: "text",
-                            text: { body: `Order cancellation request from customer ${from}.` }
-                        },
-                        {
-                            headers: {
-                                Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`,
-                                "Content-Type": "application/json"
-                            }
-                        }
-                    );
+                    const supportDigits = (process.env.SUPPORT_PHONE || "").replace(/[^0-9]/g, "");
+                    const body = `Order cancellation request from customer ${from}.`;
+                    await sendTextMessageBeta(supportDigits, body, { type: 'text', name: undefined, order_number: undefined });
                     console.log(`📩 Sent cancel request to support for customer ${from}`);
                 } catch (error) {
                     console.error("❌ Error sending cancel message:", error.response?.data || error);
@@ -228,21 +310,7 @@ const variables = {
                             ? "أجل طلبك من هنا:\nسيتواصل معك أحد ممثلي خدمة العملاء قريبًا."
                             : "Reschedule your delivery:\nA human agent will reach out to you shortly.");
 
-                    await axios.post(
-                        `https://graph.facebook.com/v22.0/${process.env.WHATSAPP_PHONE_ID}/messages`,
-                        {
-                            messaging_product: "whatsapp",
-                            to: phone_e164,
-                            type: "text",
-                            text: { body }
-                        },
-                        {
-                            headers: {
-                                Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`,
-                                "Content-Type": "application/json"
-                            }
-                        }
-                    );
+                    await sendTextMessageBeta(phone_e164, body, { type: 'text' });
 
                     // Log reschedule event separately
                     try {
@@ -292,21 +360,7 @@ const variables = {
                             ? "كلم البط الفني:\nسيتواصل معك أحد ممثلي خدمة العملاء قريبًا."
                             : "Contact Customer Support:\nA human agent will reach out to you shortly.");
 
-                    await axios.post(
-                        `https://graph.facebook.com/v22.0/${process.env.WHATSAPP_PHONE_ID}/messages`,
-                        {
-                            messaging_product: "whatsapp",
-                            to: phone_e164,
-                            type: "text",
-                            text: { body }
-                        },
-                        {
-                            headers: {
-                                Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`,
-                                "Content-Type": "application/json"
-                            }
-                        }
-                    );
+                    await sendTextMessageBeta(phone_e164, body, { type: 'text' });
 
                     // Log talk_to_human event separately
                     try {
