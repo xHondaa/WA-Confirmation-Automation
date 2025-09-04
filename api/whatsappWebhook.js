@@ -33,6 +33,21 @@ export default async function handler(req, res) {
             // Raw button/text for exact Arabic match (do not lowercase)
             const rawInput = (buttonTitle || buttonId || textBody || "").trim();
 
+            // Log every inbound message separately for analytics/traceability
+            try {
+                await db.collection("whatsappMessages").add({
+                    customer: from,
+                    message_type: message.type || null,
+                    text: textBody || null,
+                    button_title: buttonTitle || null,
+                    button_id: buttonId || null,
+                    raw: message,
+                    timestamp: new Date().toISOString(),
+                });
+            } catch (logErr) {
+                console.warn("⚠️ Failed to log inbound message:", logErr);
+            }
+
             // Handle Arabic language switch
             if (rawInput === "تغيير اللغة الي العربية") {
                 try {
@@ -76,10 +91,18 @@ const variables = {
                 userInputLower === "no, cancel order" ||
                 userInputLower === "cancel" ||
                 userInputLower.includes("cancel order");
+            const isReschedule =
+                userInputLower === "i want to reschedule" ||
+                userInputLower.includes("reschedule");
+            const isTalkHuman =
+                userInputLower === "i want to talk to a human" ||
+                userInputLower.includes("talk to a human");
 
             // Arabic buttons (use rawInput for exact match)
             const isArConfirm = rawInput === "ايوه، أكد الطلب";
             const isArCancel = rawInput === "لأ، الغي الطلب";
+            const isArReschedule = rawInput === "عايز اأجل الطلب";
+            const isArTalkHuman = rawInput === "عايز اكلم بني ادم";
             const isBackToEnglish = rawInput === "Change back to English"; // Arabic flow button
 
             // Change back to English: resend English template with same variables
@@ -170,6 +193,137 @@ const variables = {
                     console.log(`📩 Sent cancel request to support for customer ${from}`);
                 } catch (error) {
                     console.error("❌ Error sending cancel message:", error.response?.data || error);
+                }
+            } else if (isReschedule || isArReschedule) {
+                // Send reschedule link (dynamic SUPPORT_PHONE and include order number in text) with EN/AR variants
+                try {
+                    const supportDigits = (process.env.SUPPORT_PHONE || "").replace(/[^0-9]/g, "");
+
+                    // Fetch the latest order_number for this customer
+                    let orderNumber = "";
+                    try {
+                        const COL = process.env.CONFIRMATIONS_COLLECTION || "confirmations";
+                        const snap = await db
+                            .collection(COL)
+                            .where("phone_e164", "==", phone_e164)
+                            .orderBy("confirmation_sent_at", "desc")
+                            .limit(1)
+                            .get();
+                        const docData = snap.empty ? {} : (snap.docs[0].data() || {});
+                        orderNumber = docData.order_number ? String(docData.order_number) : "";
+                    } catch (e) {
+                        console.warn("⚠️ Could not fetch order_number for reschedule:", e);
+                    }
+
+                    const isArabic = !!isArReschedule;
+                    const text = isArabic
+                        ? `عايز اأجل الطلب${orderNumber ? ` رقم #${orderNumber}` : ""}`
+                        : `I want to reschedule${orderNumber ? ` Order #${orderNumber}` : ""}`;
+                    const link = supportDigits ? `https://wa.me/${supportDigits}?text=${encodeURIComponent(text)}` : null;
+                    const body = link
+                        ? (isArabic
+                            ? `أجل طلبك من هنا:\n${link}\nدوس عاللينك عشان تتواصل مع البطة المسؤولة`
+                            : `Reschedule your delivery:\n${link}\n\nTap the link to start the chat.`)
+                        : (isArabic
+                            ? "أجل طلبك من هنا:\nسيتواصل معك أحد ممثلي خدمة العملاء قريبًا."
+                            : "Reschedule your delivery:\nA human agent will reach out to you shortly.");
+
+                    await axios.post(
+                        `https://graph.facebook.com/v22.0/${process.env.WHATSAPP_PHONE_ID}/messages`,
+                        {
+                            messaging_product: "whatsapp",
+                            to: phone_e164,
+                            type: "text",
+                            text: { body }
+                        },
+                        {
+                            headers: {
+                                Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`,
+                                "Content-Type": "application/json"
+                            }
+                        }
+                    );
+
+                    // Log reschedule event separately
+                    try {
+                        await db.collection("whatsappInteractions").add({
+                            customer: from,
+                            event: "reschedule",
+                            language: isArabic ? "ar" : "en",
+                            order_number: orderNumber || null,
+                            timestamp: new Date().toISOString(),
+                        });
+                    } catch (e) {
+                        console.warn("⚠️ Failed to log reschedule event:", e);
+                    }
+
+                    console.log(`🗓️ Sent reschedule link to ${phone_e164}`);
+                } catch (err) {
+                    console.error("❌ Error sending reschedule link:", err.response?.data || err);
+                }
+            } else if (isTalkHuman || isArTalkHuman) {
+                // Send contact human link (dynamic SUPPORT_PHONE) with EN/AR variants
+                try {
+                    const supportDigits = (process.env.SUPPORT_PHONE || "").replace(/[^0-9]/g, "");
+                    const isArabic = !!isArTalkHuman;
+
+                    // Optionally include order number in the event log (not needed in the link)
+                    let orderNumber = "";
+                    try {
+                        const COL = process.env.CONFIRMATIONS_COLLECTION || "confirmations";
+                        const snap = await db
+                            .collection(COL)
+                            .where("phone_e164", "==", phone_e164)
+                            .orderBy("confirmation_sent_at", "desc")
+                            .limit(1)
+                            .get();
+                        const docData = snap.empty ? {} : (snap.docs[0].data() || {});
+                        orderNumber = docData.order_number ? String(docData.order_number) : "";
+                    } catch (e) {
+                        console.warn("⚠️ Could not fetch order_number for talk-to-human:", e);
+                    }
+
+                    const link = supportDigits ? `https://wa.me/${supportDigits}` : null;
+                    const body = link
+                        ? (isArabic
+                            ? `كلم البط الفني:\n${link}\nدوس عاللنك عشان تتواصل مع البطة المسؤولة`
+                            : `Contact Customer Support:\n${link}\n\nTap the link to start a chat with our team.`)
+                        : (isArabic
+                            ? "كلم البط الفني:\nسيتواصل معك أحد ممثلي خدمة العملاء قريبًا."
+                            : "Contact Customer Support:\nA human agent will reach out to you shortly.");
+
+                    await axios.post(
+                        `https://graph.facebook.com/v22.0/${process.env.WHATSAPP_PHONE_ID}/messages`,
+                        {
+                            messaging_product: "whatsapp",
+                            to: phone_e164,
+                            type: "text",
+                            text: { body }
+                        },
+                        {
+                            headers: {
+                                Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`,
+                                "Content-Type": "application/json"
+                            }
+                        }
+                    );
+
+                    // Log talk_to_human event separately
+                    try {
+                        await db.collection("whatsappInteractions").add({
+                            customer: from,
+                            event: "talk_to_human",
+                            language: isArabic ? "ar" : "en",
+                            order_number: orderNumber || null,
+                            timestamp: new Date().toISOString(),
+                        });
+                    } catch (e) {
+                        console.warn("⚠️ Failed to log talk_to_human event:", e);
+                    }
+
+                    console.log(`👤 Sent contact support link to ${phone_e164}`);
+                } catch (err) {
+                    console.error("❌ Error sending support link:", err.response?.data || err);
                 }
             } else {
                 console.log(`ℹ️ Received message from ${from} but no recognized button clicked`);
