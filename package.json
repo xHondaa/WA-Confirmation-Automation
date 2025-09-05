@@ -1,14 +1,17 @@
 {
   "name": "whatsapp-shopify-integration",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "server.js",
   "type": "module",
   "scripts": {
-    "dev": "vercel dev",
-    "start": "node index.js"
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
   },
   "dependencies": {
     "axios": "^1.11.0",
+    "cors": "^2.8.5",
     "express": "^4.21.2",
     "firebase": "^10.14.1",
     "firebase-admin": "^13.4.0"
