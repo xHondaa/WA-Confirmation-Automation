@@ -177,14 +177,20 @@ const variables = {
             const userInputLower = englishInputRaw.toLowerCase();
 
             // English buttons
+            // Split English cancel flows:
+            const isInitCancelEn = userInputLower === "no, cancel or edit order"; // initial cancel from confirmation template
+            const isSecondaryCancelEn = userInputLower === "cancel order"; // button inside cancellation template
+
+            // Arabic cancel trigger (initial)
+            const isInitCancelAr = rawInput === "الغاء الاوردر" || rawInput === "لأ، الغي الطلب";
             const isConfirm =
                 userInputLower === "yes, confirm order" ||
                 userInputLower === "confirm" ||
                 userInputLower.includes("confirm order");
-            const isCancel =
-                userInputLower === "no, cancel order" ||
-                userInputLower === "cancel" ||
-                userInputLower.includes("cancel order");
+            // const isCancel =
+            //     userInputLower === "no, cancel order" ||
+            //     userInputLower === "cancel" ||
+            //     userInputLower.includes("cancel order");
             const isReschedule =
                 userInputLower === "i want to reschedule" ||
                 userInputLower.includes("reschedule");
@@ -266,15 +272,87 @@ const variables = {
                 } catch (logErr) {
                     console.error("⚠️ Post-confirmation handling failed:", logErr);
                 }
-            } else if (isCancel || isArCancel) {
-                // Send alert to support
+            } else if (isInitCancelEn || isInitCancelAr || isArCancel) {
+                // Step 1: send the cancellation template (EN/AR)
                 try {
-                    const supportDigits = (process.env.SUPPORT_PHONE || "").replace(/[^0-9]/g, "");
-                    const body = `Order cancellation request from customer ${from}.`;
-                    await sendTextMessageBeta(supportDigits, body, { type: 'text', name: undefined, order_number: undefined });
-                    console.log(`📩 Sent cancel request to support for customer ${from}`);
+                    const COL = process.env.CONFIRMATIONS_COLLECTION || "confirmations";
+                    const snap = await db
+                        .collection(COL)
+                        .where("phone_e164", "==", phone_e164)
+                        .orderBy("confirmation_sent_at", "desc")
+                        .limit(1)
+                        .get();
+                    const docData = snap.empty ? {} : (snap.docs[0].data() || {});
+
+
+
+                    const tmpl = isInitCancelEn ? "order_cancellation_en" : "order_cancellation_ar";
+                    await sendWhatsappTemplate(phone_e164, tmpl, {});
+                    console.log(`🛑 Sent cancellation template (${tmpl}) to ${phone_e164}`);
                 } catch (error) {
-                    console.error("❌ Error sending cancel message:", error.response?.data || error);
+                    console.error("❌ Error sending cancellation template:", error.response?.data || error);
+                }
+            } else if (isSecondaryCancelEn) {
+                // Step 2 (EN): Cancel Order button inside the cancellation template
+                try {
+                    // Pull latest confirmation for metadata
+                    const docData = await getLatestConfirmation(phone_e164);
+                    const orderId = docData.order_id;
+                    const orderNumber = docData.order_number ? String(docData.order_number) : "";
+
+                    const shop = `${process.env.SHOPIFY_STORE}.myshopify.com`;
+                    const token = process.env.SHOPIFY_API_KEY;
+                    let fulfilled = false;
+                    if (orderId && shop && token) {
+                        try {
+                            const getRes = await axios.get(
+                                `https://${shop}/admin/api/2024-07/orders/${orderId}.json?fields=id,fulfillment_status,fulfillments`,
+                                { headers: { "X-Shopify-Access-Token": token } }
+                            );
+                            const ord = getRes.data?.order;
+                            const status = ord?.fulfillment_status || null;
+                            fulfilled = status === 'fulfilled' || status === 'partially_fulfilled';
+                        } catch (e) {
+                            console.warn("⚠️ Could not fetch Shopify order for cancel decision:", e.response?.data || e.message);
+                        }
+                    }
+
+                    if (fulfilled) {
+                        const supportDigits = (process.env.SUPPORT_PHONE || "").replace(/[^0-9]/g, "");
+                        const link = supportDigits ? `https://wa.me/${supportDigits}` : "https://wa.me/201113315213";
+                        const body = `Your order has already been shipped, if you still want to cancel it please contact support at ${link}`;
+                        await sendTextMessageBeta(phone_e164, body, { type: 'text', order_number: orderNumber });
+                    } else {
+                        // Not fulfilled → mark cancelled, notify support, and inform the customer
+                        await updateShopifyOrderTag(from, "cancelled");
+                        const body = "Alright your order has been canceled.";
+                        await sendTextMessageBeta(phone_e164, body, { type: 'text', order_number: orderNumber });
+
+                        // Existing support message
+                        try {
+                            const supportDigits = (process.env.SUPPORT_PHONE || "").replace(/[^0-9]/g, "");
+                            const supportBody = `Order cancellation request from customer ${from}.`;
+                            await sendTextMessageBeta(supportDigits, supportBody, { type: 'text', order_number: orderNumber });
+                            console.log(`📩 Notified support of cancellation for customer ${from}`);
+                        } catch (e) {
+                            console.error("❌ Error notifying support:", e.response?.data || e);
+                        }
+                    }
+                } catch (error) {
+                    console.error("❌ Error handling secondary cancel:", error.response?.data || error);
+                }
+            } else if (userInputLower === "edit order") {
+                // Edit Order: send link with prefilled text including order number
+                try {
+                    const docData = await getLatestConfirmation(phone_e164);
+                    const orderNumber = docData.order_number ? String(docData.order_number) : "";
+                    const supportDigits = (process.env.SUPPORT_PHONE || "").replace(/[^0-9]/g, "");
+                    const txt = `I want to edit Order #${orderNumber}`.trim();
+                    const link = supportDigits ? `https://wa.me/${supportDigits}?text=${encodeURIComponent(txt)}` : `https://wa.me/201113315213?text=${encodeURIComponent(txt)}`;
+                    const body = `Edit your order here:\n${link}`;
+                    await sendTextMessageBeta(phone_e164, body, { type: 'text', order_number: orderNumber });
+                } catch (error) {
+                    console.error("❌ Error sending edit order link:", error.response?.data || error);
                 }
             } else if (isReschedule || isArReschedule) {
                 // Send reschedule link (dynamic SUPPORT_PHONE and include order number in text) with EN/AR variants
