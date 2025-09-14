@@ -177,7 +177,7 @@ const variables = {
             const userInputLower = englishInputRaw.toLowerCase();
 
             // English cancellation and navigation buttons
-            const isInitCancelEn = userInputLower === "no, cancel order"; // initial cancel from confirmation template
+            const isInitCancelEn = userInputLower === "no, cancel or edit order"; // initial cancel from confirmation template
             const isSecondaryCancelEn = userInputLower === "cancel order"; // button inside cancellation template
             const isGoBackEn = userInputLower === "go back"; // inside cancellation template to return to confirmation
 
