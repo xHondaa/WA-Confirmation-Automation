@@ -176,10 +176,10 @@ const variables = {
             const englishInputRaw = (buttonTitle || buttonId || textBody || "").trim();
             const userInputLower = englishInputRaw.toLowerCase();
 
-            // English buttons
-            // Split English cancel flows:
-            const isInitCancelEn = userInputLower === "no, cancel or edit order"; // initial cancel from confirmation template
+            // English cancellation and navigation buttons
+            const isInitCancelEn = userInputLower === "no, cancel order"; // initial cancel from confirmation template
             const isSecondaryCancelEn = userInputLower === "cancel order"; // button inside cancellation template
+            const isGoBackEn = userInputLower === "go back"; // inside cancellation template to return to confirmation
 
             // Arabic cancel trigger (initial)
             const isInitCancelAr = rawInput === "الغاء الاوردر" || rawInput === "لأ، الغي الطلب";
@@ -204,6 +204,32 @@ const variables = {
             const isArReschedule = rawInput === "عايز اأجل الطلب";
             const isArTalkHuman = rawInput === "عايز اكلم بني ادم";
             const isBackToEnglish = rawInput === "Change back to English"; // Arabic flow button
+
+            // Go back (EN): resend original confirmation template
+            if (isGoBackEn) {
+                try {
+                    const COL = process.env.CONFIRMATIONS_COLLECTION || "confirmations";
+                    const snap = await db
+                        .collection(COL)
+                        .where("phone_e164", "==", phone_e164)
+                        .orderBy("confirmation_sent_at", "desc")
+                        .limit(1)
+                        .get();
+
+                    const docData = snap.empty ? {} : (snap.docs[0].data() || {});
+                    const variables = {
+                        orderid: String(docData.order_number || ""),
+                        name: (docData.name?.split(" ")[0] || docData.name || "Customer"),
+                        address: (docData.address && String(docData.address).trim()) || "N/A",
+                        price: (docData.price != null && String(docData.price).trim() !== "" ? String(docData.price) : "0"),
+                    };
+
+                    await sendWhatsappTemplate(phone_e164, "order_confirmation", variables);
+                } catch (err) {
+                    console.error("❌ Error sending order_confirmation on Go back:", err.response?.data || err);
+                }
+                return res.status(200).send("OK");
+            }
 
             // Change back to English: resend English template with same variables
             if (isBackToEnglish) {
@@ -319,13 +345,14 @@ const variables = {
 
                     if (fulfilled) {
                         const supportDigits = (process.env.SUPPORT_PHONE || "").replace(/[^0-9]/g, "");
-                        const link = supportDigits ? `https://wa.me/${supportDigits}` : "https://wa.me/201113315213";
-                        const body = `Your order has already been shipped, if you still want to cancel it please contact support at ${link}`;
+                        const txt = `I want to cancel my order#${orderNumber}`;
+                        const link = supportDigits ? `https://wa.me/${supportDigits}?text=${encodeURIComponent(txt)}` : `https://wa.me/201113315213?text=${encodeURIComponent(txt)}`;
+                        const body = `Unfortunately your order has already been shipped and can't be automatically cancelled, if you still wish to cancel your order please contact our customer support from here ${link}`;
                         await sendTextMessageBeta(phone_e164, body, { type: 'text', order_number: orderNumber });
                     } else {
                         // Not fulfilled → mark cancelled, notify support, and inform the customer
                         await updateShopifyOrderTag(from, "cancelled");
-                        const body = "Alright your order has been canceled.";
+                        const body = "Your order has been canceled";
                         await sendTextMessageBeta(phone_e164, body, { type: 'text', order_number: orderNumber });
 
                         // Existing support message
@@ -349,7 +376,7 @@ const variables = {
                     const supportDigits = (process.env.SUPPORT_PHONE || "").replace(/[^0-9]/g, "");
                     const txt = `I want to edit Order #${orderNumber}`.trim();
                     const link = supportDigits ? `https://wa.me/${supportDigits}?text=${encodeURIComponent(txt)}` : `https://wa.me/201113315213?text=${encodeURIComponent(txt)}`;
-                    const body = `Edit your order here:\n${link}`;
+                    const body = `If you wish to edit your order please contact the customer support from here with your edit ${link}`;
                     await sendTextMessageBeta(phone_e164, body, { type: 'text', order_number: orderNumber });
                 } catch (error) {
                     console.error("❌ Error sending edit order link:", error.response?.data || error);
