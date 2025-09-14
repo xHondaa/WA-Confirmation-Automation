@@ -342,7 +342,7 @@ const variables = {
                             console.warn("⚠️ Could not fetch Shopify order for cancel decision:", e.response?.data || e.message);
                         }
                     }
-//
+
                     if (fulfilled) {
                         const supportDigits = (process.env.SUPPORT_PHONE || "").replace(/[^0-9]/g, "");
                         const txt = `I want to cancel my order#${orderNumber}`;
