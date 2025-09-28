@@ -182,7 +182,6 @@ const variables = {
             const isGoBackEn = userInputLower === "go back"; // inside cancellation template to return to confirmation
 
             // Arabic cancel trigger (initial)
-            const isInitCancelAr = rawInput === "الغاء الاوردر" || rawInput === "لأ، الغي الطلب";
             const isConfirm =
                 userInputLower === "yes, confirm order" ||
                 userInputLower === "confirm" ||
@@ -198,9 +197,14 @@ const variables = {
                 userInputLower === "i want to talk to a human" ||
                 userInputLower.includes("talk to a human");
 
-            // Arabic buttons (use rawInput for exact match)
+// Arabic buttons (use rawInput for exact match)
             const isArConfirm = rawInput === "ايوه، أكد الطلب";
-            const isArCancel = rawInput === "لأ، الغي الطلب";
+            // Initial Arabic cancel/edit trigger from confirmation template
+            const isInitCancelAr = rawInput === "لأ، عدل او الغي الطلب";
+            // Inside Arabic cancellation template buttons
+            const isArCancelProceed = rawInput === "الغي الاوردر";
+            const isArEdit = rawInput === "اعدل الاوردر";
+            const isArBack = rawInput === "العوده";
             const isArReschedule = rawInput === "عايز اأجل الطلب";
             const isArTalkHuman = rawInput === "عايز اكلم بني ادم";
             const isBackToEnglish = rawInput === "Change back to English"; // Arabic flow button
@@ -298,7 +302,7 @@ const variables = {
                 } catch (logErr) {
                     console.error("⚠️ Post-confirmation handling failed:", logErr);
                 }
-            } else if (isInitCancelEn || isInitCancelAr || isArCancel) {
+            } else if (isInitCancelEn || isInitCancelAr) {
                 // Step 1: send the cancellation template (EN/AR)
                 try {
                     const COL = process.env.CONFIRMATIONS_COLLECTION || "confirmations";
@@ -308,7 +312,7 @@ const variables = {
                         .orderBy("confirmation_sent_at", "desc")
                         .limit(1)
                         .get();
-                    const docData = snap.empty ? {} : (snap.docs[0].data() || {});
+
 
 
 
@@ -367,6 +371,86 @@ const variables = {
                     }
                 } catch (error) {
                     console.error("❌ Error handling secondary cancel:", error.response?.data || error);
+                }
+            } else if (isArBack) {
+                // AR: Back inside cancellation → resend Arabic confirmation
+                try {
+                    const COL = process.env.CONFIRMATIONS_COLLECTION || "confirmations";
+                    const snap = await db
+                        .collection(COL)
+                        .where("phone_e164", "==", phone_e164)
+                        .orderBy("confirmation_sent_at", "desc")
+                        .limit(1)
+                        .get();
+                    const docData = snap.empty ? {} : (snap.docs[0].data() || {});
+                    const variables = {
+                        orderid: String(docData.order_number || ""),
+                        name: (docData.name?.split(" ")[0] || docData.name || "Customer"),
+                        address: (docData.address && String(docData.address).trim()) || "N/A",
+                        price: (docData.price != null && String(docData.price).trim() !== "" ? String(docData.price) : "0"),
+                    };
+                    await sendWhatsappTemplate(phone_e164, "order_confirmation_ar", variables);
+                } catch (error) {
+                    console.error("❌ Error resending Arabic confirmation:", error.response?.data || error);
+                }
+            } else if (isArCancelProceed) {
+                // AR: Cancel proceed inside cancellation template
+                try {
+                    const docData = await getLatestConfirmation(phone_e164);
+                    const orderId = docData.order_id;
+                    const orderNumber = docData.order_number ? String(docData.order_number) : "";
+
+                    const shop = `${process.env.SHOPIFY_STORE}.myshopify.com`;
+                    const token = process.env.SHOPIFY_API_KEY;
+                    let fulfilled = false;
+                    if (orderId && shop && token) {
+                        try {
+                            const getRes = await axios.get(
+                                `https://${shop}/admin/api/2024-07/orders/${orderId}.json?fields=id,fulfillment_status,fulfillments`,
+                                { headers: { "X-Shopify-Access-Token": token } }
+                            );
+                            const ord = getRes.data?.order;
+                            const status = ord?.fulfillment_status || null;
+                            fulfilled = status === 'fulfilled' || status === 'partially_fulfilled';
+                        } catch (e) {
+                            console.warn("⚠️ Could not fetch Shopify order for AR cancel decision:", e.response?.data || e.message);
+                        }
+                    }
+
+                    if (fulfilled) {
+                        const supportDigits = (process.env.SUPPORT_PHONE || "").replace(/[^0-9]/g, "");
+                        const txt = `عايز الغي الاوردر، رقم الاوردر ${orderNumber}`;
+                        const link = supportDigits ? `https://wa.me/${supportDigits}?text=${encodeURIComponent(txt)}` : `https://wa.me/201113315213?text=${encodeURIComponent(txt)}`;
+                        const body = `للأسف طلبك اتشحن خلاص ومش بيتلغي أوتوماتيك، لو لسه حابب تلغي الطلب كلم خدمة العملاء من هنا.\n${link}`;
+                        await sendTextMessageBeta(phone_e164, body, { type: 'text', order_number: orderNumber });
+                    } else {
+                        await updateShopifyOrderTag(from, "Cancelled_Order");
+                        const body = "الاوردر اتلغى";
+                        await sendTextMessageBeta(phone_e164, body, { type: 'text', order_number: orderNumber });
+                        // Notify support with current cancellation message
+                        try {
+                            const supportDigits = (process.env.SUPPORT_PHONE || "").replace(/[^0-9]/g, "");
+                            const supportBody = `Order cancellation request from customer ${from}.`;
+                            await sendTextMessageBeta(supportDigits, supportBody, { type: 'text', order_number: orderNumber });
+                        } catch (e) {
+                            console.error("❌ Error notifying support (AR):", e.response?.data || e);
+                        }
+                    }
+                } catch (error) {
+                    console.error("❌ Error handling AR cancel proceed:", error.response?.data || error);
+                }
+            } else if (isArEdit) {
+                // AR: Edit inside cancellation template
+                try {
+                    const docData = await getLatestConfirmation(phone_e164);
+                    const orderNumber = docData.order_number ? String(docData.order_number) : "";
+                    const supportDigits = (process.env.SUPPORT_PHONE || "").replace(/[^0-9]/g, "");
+                    const txt = `عايز اعدل الطلب ${orderNumber ? `#${orderNumber}` : ""}`.trim();
+                    const link = supportDigits ? `https://wa.me/${supportDigits}?text=${encodeURIComponent(txt)}` : `https://wa.me/201113315213?text=${encodeURIComponent(txt)}`;
+                    const body = `لو حابب تعدل على طلبك كلم خدمة العملاء من هنا وقولهم التعديل.\n${link}`;
+                    await sendTextMessageBeta(phone_e164, body, { type: 'text', order_number: orderNumber });
+                } catch (error) {
+                    console.error("❌ Error sending AR edit link:", error.response?.data || error);
                 }
             } else if (userInputLower === "edit order") {
                 // Edit Order: send link with prefilled text including order number
