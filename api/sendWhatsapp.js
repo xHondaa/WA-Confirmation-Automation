@@ -37,8 +37,8 @@ if (templateName === "order_shipping_ar") {
 
 // Map template name to its language code (default to English)
 function getLanguageForTemplate(templateName) {
-    // Special-case: order_confirmation_ar is registered in English on Meta
-    if (templateName === "order_confirmation_ar") return "en";
+    // Special-case: order_cancellation_ar is registered in English on Meta
+    if (templateName === "order_cancellation_ar") return "en";
     // Arabic templates default to ar_EG
     if (/_ar$/i.test(templateName)) return "ar_EG"; // e.g., order_cancellation_ar, order_shipping_ar
     // Default English
