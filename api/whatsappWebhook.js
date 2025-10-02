@@ -204,7 +204,7 @@ const variables = {
             // Inside Arabic cancellation template buttons
             const isArCancelProceed = rawInput === "الغي الاوردر";
             const isArEdit = rawInput === "اعدل الاوردر";
-            const isArBack = rawInput === "العوده";
+            const isArBack = rawInput === "الرجوع";
             const isArReschedule = rawInput === "عايز اأجل الطلب";
             const isArTalkHuman = rawInput === "عايز اكلم بني ادم";
             const isBackToEnglish = rawInput === "Change back to English"; // Arabic flow button
