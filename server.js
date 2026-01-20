@@ -6,6 +6,7 @@ import sendWhatsapp from "./api/sendWhatsapp.js";
 import whatsappWebhook from "./api/whatsappWebhook.js";
 import whatsappStatusWebhook from "./api/whatsappStatusWebhook.js";
 import shopifyWebhook from "./api/shopifyWebhook.js";
+import sendTextMessage from "./api/sendTextMessage.js";
 
 const app = express();
 
