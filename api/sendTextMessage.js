@@ -12,7 +12,7 @@ export default async function sendTextMessage(req, res) {
         }
 
         // Send message via WhatsApp API
-        const response = await fetch(`https://graph.facebook.com/v21.0/${process.env.PHONE_NUMBER_ID}/messages`, {
+        const response = await fetch(`https://graph.facebook.com/v21.0/${process.env.WHATSAPP_PHONE_ID}/messages`, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${process.env.WHATSAPP_TOKEN}`,
