@@ -1,13 +1,18 @@
-app.post('/send-text-message', async (req, res) => {
+import fetch from "node-fetch";
+import db from "../firebaseAdmin.js";
+
+export default async function sendTextMessage(req, res) {
     try {
         const { phone, message, order_number } = req.body;
+
+        console.log('Send message request:', { phone, message, order_number });
 
         if (!phone || !message) {
             return res.status(400).json({ error: 'Phone and message required' });
         }
 
         // Send message via WhatsApp API
-        const response = await fetch(`https://graph.facebook.com/v21.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`, {
+        const response = await fetch(`https://graph.facebook.com/v21.0/${process.env.PHONE_NUMBER_ID}/messages`, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${process.env.WHATSAPP_TOKEN}`,
@@ -24,6 +29,8 @@ app.post('/send-text-message', async (req, res) => {
         });
 
         const data = await response.json();
+
+        console.log('WhatsApp API response:', data);
 
         if (!response.ok) {
             throw new Error(data.error?.message || 'WhatsApp API error');
@@ -47,4 +54,4 @@ app.post('/send-text-message', async (req, res) => {
         console.error('Error sending message:', error);
         res.status(500).json({ error: error.message });
     }
-});
+}

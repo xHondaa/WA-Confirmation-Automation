@@ -21,6 +21,7 @@ app.post("/api/whatsappWebhook", (req, res) => whatsappWebhook(req, res));
 app.get("/api/whatsappStatusWebhook", (req, res) => whatsappStatusWebhook(req, res)); // GET verification
 app.post("/api/whatsappStatusWebhook", (req, res) => whatsappStatusWebhook(req, res)); // Status updates
 app.post("/api/shopifyWebhook", (req, res) => shopifyWebhook(req, res));
+app.post("/api/send-text-message", (req, res) => sendTextMessage(req, res)); // Add this
 
 // Health check
 app.get("/healthz", (_req, res) => res.status(200).send("ok"));
