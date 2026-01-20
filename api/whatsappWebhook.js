@@ -13,7 +13,7 @@ const toDigits = (s) => (s || "").replace(/[^0-9]/g, "");
 async function sendTextRaw(toDigitsVal, body) {
     if (!toDigitsVal) return;
     try {
-        await axios.post(
+        const response = await axios.post(
             WHATSAPP_API_URL,
             {
                 messaging_product: "whatsapp",
@@ -28,14 +28,34 @@ async function sendTextRaw(toDigitsVal, body) {
                 }
             }
         );
+        return response.data;
     } catch (e) {
         console.warn("⚠️ Failed to send text (beta/raw):", e.response?.data || e.message);
+        return null;
     }
 }
 
 async function sendTextMessageBeta(to, body, meta = {}) {
     const originalToDigits = toDigits(to);
-    await sendTextRaw(originalToDigits, body);
+    const response = await sendTextRaw(originalToDigits, body);
+
+    // Log outbound text message with status tracking
+    try {
+        const messageId = response?.messages?.[0]?.id;
+        await db.collection("whatsappMessages").add({
+            customer: originalToDigits,
+            message_type: "text",
+            text: body,
+            direction: "outbound",
+            order_number: meta.order_number || null,
+            message_id: messageId || null,
+            status: "sent",
+            status_updated_at: new Date().toISOString(),
+            timestamp: new Date().toISOString(),
+        });
+    } catch (logErr) {
+        console.warn("⚠️ Failed to log outbound text message:", logErr);
+    }
 
     // Mirror to tester if beta
     if (isBeta()) {
@@ -104,6 +124,15 @@ export default async function handler(req, res) {
 
             // Log every inbound message separately for analytics/traceability
             try {
+                // Get order_number from latest confirmation for this customer
+                let orderNumber = null;
+                try {
+                    const docData = await getLatestConfirmation(phone_e164);
+                    orderNumber = docData.order_number || null;
+                } catch (e) {
+                    console.warn("⚠️ Could not fetch order_number for inbound log:", e);
+                }
+
                 await db.collection("whatsappMessages").add({
                     customer: from,
                     message_type: message.type || null,
@@ -111,6 +140,8 @@ export default async function handler(req, res) {
                     button_title: buttonTitle || null,
                     button_id: buttonId || null,
                     raw: message,
+                    direction: "inbound",
+                    order_number: orderNumber,
                     timestamp: new Date().toISOString(),
                 });
             } catch (logErr) {

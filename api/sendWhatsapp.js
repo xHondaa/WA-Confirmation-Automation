@@ -1,4 +1,5 @@
 import axios from "axios";
+import db from "../firebaseAdmin.js";
 
 // Order parameters explicitly to match the template placeholders
 // Include parameter_name for Meta named variables support
@@ -116,6 +117,25 @@ export async function sendWhatsappTemplate(to, templateName, variables = {}) {
             "Content-Type": "application/json",
         },
     });
+
+    // Log outbound message with status tracking
+    try {
+        const messageId = response.data?.messages?.[0]?.id;
+        await db.collection("whatsappMessages").add({
+            customer: toDigits,
+            message_type: "template",
+            template_name: templateName,
+            variables: variables,
+            direction: "outbound",
+            order_number: variables?.orderid || variables?.order_number || null,
+            message_id: messageId || null,
+            status: "sent",
+            status_updated_at: new Date().toISOString(),
+            timestamp: new Date().toISOString(),
+        });
+    } catch (logErr) {
+        console.warn("⚠️ Failed to log outbound message:", logErr);
+    }
 
     // BETA: mirror outgoing to tester
     try {

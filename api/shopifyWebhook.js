@@ -71,12 +71,15 @@ const phone_e164 = normalizeE164(phone);
 await db.collection(COL).add({
     phone_e164,
     order_id: order.id,
+    order_number: orderNumber,
     status: "pending",
     confirmation_sent_at: new Date(),
     name: fullName,
-    order_number: orderNumber,
     address: address || "N/A",
     price: price || "0",
+    direction: "outbound",
+    message_status: "pending",
+    status_updated_at: new Date(),
 });
 
         // Build variables for WhatsApp template
@@ -90,17 +93,41 @@ await db.collection(COL).add({
         const isProd = process.env.MODE === "production";
         const testPhone = process.env.TEST_PHONE; // your number in E.164 format e.g. +201234567890
 
+        let messageId = null;
         if (isProd) {
             // ✅ Live mode: send to all customers
-            await sendWhatsappTemplate(phone, "order_confirmation", variables);
+            const result = await sendWhatsappTemplate(phone, "order_confirmation", variables);
+            messageId = result?.messages?.[0]?.id;
             console.log("✅ Sent WhatsApp confirmation to", phone);
         } else {
             // 🚧 Dev mode: only send to your test phone
             if (phone === testPhone) {
-                await sendWhatsappTemplate(phone, "order_confirmation", variables);
+                const result = await sendWhatsappTemplate(phone, "order_confirmation", variables);
+                messageId = result?.messages?.[0]?.id;
                 console.log("DEV MODE: Sent test WhatsApp to", phone);
             } else {
                 console.log("DEV MODE: Skipped sending WhatsApp to", phone);
+            }
+        }
+
+        // Update the confirmation entry with the message_id if available
+        if (messageId) {
+            try {
+                const snapshot = await db.collection(COL)
+                    .where("phone_e164", "==", phone_e164)
+                    .where("order_number", "==", orderNumber)
+                    .orderBy("confirmation_sent_at", "desc")
+                    .limit(1)
+                    .get();
+                
+                if (!snapshot.empty) {
+                    await snapshot.docs[0].ref.update({
+                        message_id: messageId,
+                        message_status: "sent"
+                    });
+                }
+            } catch (e) {
+                console.warn("⚠️ Failed to update message_id in confirmation:", e);
             }
         }
 
