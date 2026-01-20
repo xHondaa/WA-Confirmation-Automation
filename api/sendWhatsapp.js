@@ -127,7 +127,7 @@ export async function sendWhatsappTemplate(to, templateName, variables = {}) {
             template_name: templateName,
             variables: variables,
             direction: "outbound",
-            order_number: variables?.orderid || variables?.order_number || null,
+            order_number: Number(variables?.orderid || variables?.order_number) || null,
             message_id: messageId || null,
             status: "sent",
             status_updated_at: new Date().toISOString(),
