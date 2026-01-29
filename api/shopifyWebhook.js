@@ -68,6 +68,18 @@ export default async function handler(req, res) {
 // ✅ Save to Firestore with Admin SDK (confirmations collection)
 const COL = process.env.CONFIRMATIONS_COLLECTION || "confirmations";
 const phone_e164 = normalizeE164(phone);
+
+// Check if order already exists (idempotency - prevents duplicate processing from webhook retries)
+const existing = await db.collection(COL)
+    .where("order_id", "==", order.id)
+    .limit(1)
+    .get();
+
+if (!existing.empty) {
+    console.log(`⚠️ Order ${order.id} already processed, skipping`);
+    return res.status(200).send("OK");
+}
+
 await db.collection(COL).add({
     phone_e164,
     order_id: order.id,
