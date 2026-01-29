@@ -53,6 +53,9 @@ async function sendTextMessageBeta(to, body, meta = {}) {
             status_updated_at: new Date().toISOString(),
             timestamp: new Date().toISOString(),
         });
+
+        // Update last_message_at on orders collection
+        await updateOrderLastMessageAt(meta.order_number);
     } catch (logErr) {
         console.warn("⚠️ Failed to log outbound text message:", logErr);
     }
@@ -89,6 +92,24 @@ async function getLatestConfirmation(phone_e164) {
     } catch (e) {
         console.warn("⚠️ Failed to fetch latest confirmation for", phone_e164, e);
         return {};
+    }
+}
+
+// Update last_message_at timestamp on orders collection for pagination/sorting
+async function updateOrderLastMessageAt(orderNumber) {
+    if (!orderNumber) return;
+    try {
+        const snapshot = await db.collection("orders")
+            .where("order_number", "==", orderNumber)
+            .limit(1)
+            .get();
+        if (!snapshot.empty) {
+            await snapshot.docs[0].ref.update({
+                last_message_at: new Date()
+            });
+        }
+    } catch (err) {
+        console.warn("⚠️ Failed to update last_message_at:", err);
     }
 }
 
@@ -144,6 +165,9 @@ export default async function handler(req, res) {
                     order_number: orderNumber,
                     timestamp: new Date().toISOString(),
                 });
+
+                // Update last_message_at on orders collection
+                await updateOrderLastMessageAt(orderNumber);
             } catch (logErr) {
                 console.warn("⚠️ Failed to log inbound message:", logErr);
             }

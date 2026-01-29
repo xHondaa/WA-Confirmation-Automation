@@ -64,6 +64,24 @@ function getHeaderParameters(templateName, variables) {
 const isBeta = () => String(process.env.BETA_TESTING || "").toLowerCase() === "true";
 const getTestPhoneDigits = () => (process.env.TEST_PHONE || "").replace(/[^0-9]/g, "");
 
+// Update last_message_at timestamp on orders collection for pagination/sorting
+async function updateOrderLastMessageAt(orderNumber) {
+    if (!orderNumber) return;
+    try {
+        const snapshot = await db.collection("orders")
+            .where("order_number", "==", orderNumber)
+            .limit(1)
+            .get();
+        if (!snapshot.empty) {
+            await snapshot.docs[0].ref.update({
+                last_message_at: new Date()
+            });
+        }
+    } catch (err) {
+        console.warn("⚠️ Failed to update last_message_at:", err);
+    }
+}
+
 async function sendTextRaw(toDigitsVal, body) {
     if (!toDigitsVal) return;
     const url = `https://graph.facebook.com/v23.0/${process.env.WHATSAPP_PHONE_ID}/messages`;
@@ -121,18 +139,22 @@ export async function sendWhatsappTemplate(to, templateName, variables = {}, oth
     // Log outbound message with status tracking
     try {
         const messageId = response.data?.messages?.[0]?.id;
+        const orderNumber = Number(variables?.orderid || variables?.order_number) || otherVariables?.orderid || null;
         await db.collection("whatsappMessages").add({
             customer: toDigits,
             message_type: "template",
             template_name: templateName,
             variables: variables,
             direction: "outbound",
-            order_number: Number(variables?.orderid || variables?.order_number) || otherVariables?.orderid || null,
+            order_number: orderNumber,
             message_id: messageId || null,
             status: "sent",
             status_updated_at: new Date().toISOString(),
             timestamp: new Date().toISOString(),
         });
+
+        // Update last_message_at on orders collection
+        await updateOrderLastMessageAt(orderNumber);
     } catch (logErr) {
         console.warn("⚠️ Failed to log outbound message:", logErr);
     }
