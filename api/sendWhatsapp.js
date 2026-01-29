@@ -79,7 +79,7 @@ async function sendTextRaw(toDigitsVal, body) {
 }
 
 // ✅ Exported function for sending WhatsApp templates
-export async function sendWhatsappTemplate(to, templateName, variables = {}) {
+export async function sendWhatsappTemplate(to, templateName, variables = {}, otherVariables = null) {
     const url = `https://graph.facebook.com/v23.0/${process.env.WHATSAPP_PHONE_ID}/messages`;
 
     const components = [];
@@ -125,9 +125,9 @@ export async function sendWhatsappTemplate(to, templateName, variables = {}) {
             customer: toDigits,
             message_type: "template",
             template_name: templateName,
-            variables: variables,
+            variables: variables || otherVariables,
             direction: "outbound",
-            order_number: Number(variables?.orderid || variables?.order_number) || null,
+            order_number: Number(variables?.orderid || variables?.order_number) || otherVariables?.orderNumber || null,
             message_id: messageId || null,
             status: "sent",
             status_updated_at: new Date().toISOString(),
