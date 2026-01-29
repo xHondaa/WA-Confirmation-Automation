@@ -1,5 +1,6 @@
 import db from "../firebaseAdmin.js";
 import { sendWhatsappTemplate } from "./sendWhatsapp.js";
+import {updateShopifyOrderTag} from "./updateShopify.js";
 
 // Normalize phone to E.164-like format: keep leading + and digits only
 function normalizeE164(raw) {
@@ -109,6 +110,7 @@ await db.collection(COL).add({
         if (isProd) {
             // ✅ Live mode: send to all customers
             const result = await sendWhatsappTemplate(phone, "order_confirmation", variables);
+            await updateShopifyOrderTag(from, "⚠ Confirmation Pending");
             messageId = result?.messages?.[0]?.id;
             console.log("✅ Sent WhatsApp confirmation to", phone);
         } else {
