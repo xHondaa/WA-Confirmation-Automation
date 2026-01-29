@@ -125,7 +125,7 @@ export async function sendWhatsappTemplate(to, templateName, variables = {}, oth
             customer: toDigits,
             message_type: "template",
             template_name: templateName,
-            variables: variables || otherVariables,
+            variables: variables,
             direction: "outbound",
             order_number: Number(variables?.orderid || variables?.order_number) || otherVariables?.orderNumber || null,
             message_id: messageId || null,
