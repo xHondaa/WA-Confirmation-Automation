@@ -21,7 +21,7 @@ Stores all WhatsApp messages (both inbound and outbound).
 - **status_updated_at** (timestamp): **NEW** - When the status was last updated
 - **timestamp** (string): ISO timestamp when message was created/received
 
-### 2. `confirmations`
+### 2. `orders`
 Stores order confirmations sent to customers.
 
 #### Fields:
