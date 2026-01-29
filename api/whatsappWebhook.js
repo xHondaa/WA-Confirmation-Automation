@@ -350,6 +350,8 @@ const variables = {
                         const variables = {
                             orderid: String(docData.order_number || ""),
                             name: (docData.name?.split(" ")[0] || docData.name || "Customer"),
+                            address: (docData.address && String(docData.address).trim()) || "N/A",
+                            price: (docData.price != null && String(docData.price).trim() !== "" ? String(docData.price) : "0"),
                         };
 
                         const tmpl = isInitCancelEn ? "order_cancellation_en" : "order_cancellation_ar";
