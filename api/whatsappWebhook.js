@@ -344,12 +344,21 @@ const variables = {
                         .limit(1)
                         .get();
 
+                    if (!snap.empty) {
+                        const docData = snap.docs[0].data();
 
+                        const variables = {
+                            orderid: String(docData.order_number || ""),
+                            name: (docData.name?.split(" ")[0] || docData.name || "Customer"),
+                        };
 
+                        const tmpl = isInitCancelEn ? "order_cancellation_en" : "order_cancellation_ar";
+                        await sendWhatsappTemplate(phone_e164, tmpl, variables);
+                        console.log(`🛑 Sent cancellation template (${tmpl}) to ${phone_e164} for order ${variables.orderid}`);
+                    } else {
+                        console.log(`⚠️ No order found for ${phone_e164} to cancel`);
+                    }
 
-                    const tmpl = isInitCancelEn ? "order_cancellation_en" : "order_cancellation_ar";
-                    await sendWhatsappTemplate(phone_e164, tmpl, {});
-                    console.log(`🛑 Sent cancellation template (${tmpl}) to ${phone_e164}`);
                 } catch (error) {
                     console.error("❌ Error sending cancellation template:", error.response?.data || error);
                 }
