@@ -37,6 +37,7 @@ Stores order confirmations sent to customers.
 - **message_status** (string): **NEW** - WhatsApp message status: "pending", "sent", "delivered", "read", "failed"
 - **message_id** (string, optional): **NEW** - WhatsApp message ID for tracking
 - **status_updated_at** (timestamp): **NEW** - When the message status was last updated
+- **last_message_at** (timestamp): **NEW** - Timestamp of last message sent/received for this order (enables pagination + sorting)
 
 ### 3. `whatsappInteractions`
 Stores customer interaction events (confirmations, cancellations, reschedules).
