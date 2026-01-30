@@ -18,6 +18,48 @@ function coerceOrderId(id) {
   throw new Error("invalid_order_id");
 }
 
+// Simple function to tag a Shopify order by order ID (does NOT update Firebase status)
+export async function tagShopifyOrder(orderId, tag) {
+  const shop = `${process.env.SHOPIFY_STORE}.myshopify.com`;
+  const token = process.env.SHOPIFY_API_KEY;
+  if (!shop || !token) {
+    console.error("Missing SHOPIFY_STORE or SHOPIFY_API_KEY env vars");
+    return;
+  }
+
+  try {
+    const numericOrderId = coerceOrderId(orderId);
+
+    // Fetch current order tags
+    const getRes = await axios.get(
+      `https://${shop}/admin/api/2024-07/orders/${numericOrderId}.json?fields=id,tags`,
+      { headers: { "X-Shopify-Access-Token": token } }
+    );
+
+    const order = getRes.data?.order;
+    if (!order) throw new Error("shopify_order_not_found");
+
+    const existingTags = (order.tags || "")
+      .split(",")
+      .map((t) => t.trim())
+      .filter(Boolean);
+    const nextTags = Array.from(new Set([...existingTags, tag])).join(", ");
+
+    // Update order with merged tags
+    await axios.put(
+      `https://${shop}/admin/api/2024-07/orders/${order.id}.json`,
+      { order: { id: Number(order.id), tags: nextTags } },
+      { headers: { "X-Shopify-Access-Token": token } }
+    );
+
+    console.log(`Tagged order ${order.id} with "${tag}"`);
+    return { success: true, orderId: order.id };
+  } catch (error) {
+    console.error("Error tagging Shopify order:", error.response?.data || error.message || error);
+    return { success: false, error: error.message };
+  }
+}
+
 export async function updateShopifyOrderTag(phone, tag) {
   const shop = `${process.env.SHOPIFY_STORE}.myshopify.com`;
   const token = process.env.SHOPIFY_API_KEY;
