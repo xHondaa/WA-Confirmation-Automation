@@ -110,6 +110,7 @@ await db.collection(COL).add({
         if (isProd) {
             // ✅ Live mode: send to all customers
             const result = await sendWhatsappTemplate(phone, "order_confirmation", variables);
+            await updateShopifyOrderTag(phone, "⚠ Confirmation Pending");
             messageId = result?.messages?.[0]?.id;
             // Tag Shopify order as pending confirmation (does NOT change Firebase status)
             await tagShopifyOrder(order.id, "⚠ Confirmation Pending");

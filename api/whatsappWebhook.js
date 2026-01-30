@@ -319,7 +319,7 @@ const variables = {
 
             if (isConfirm || isArConfirm) {
                 // Update Shopify order tag
-                await updateShopifyOrderTag(from, "confirmed");
+                await updateShopifyOrderTag(from, "✅ Order Confirmed");
                 console.log(`✅ Order confirmed for customer ${from}`);
 
                 // Log a separate confirmation event with language and send shipping template
@@ -421,7 +421,7 @@ const variables = {
                         await sendTextMessageBeta(phone_e164, body, { type: 'text', order_number: orderNumber });
                     } else {
                         // Not fulfilled → mark cancelled, notify support, and inform the customer
-                        await updateShopifyOrderTag(from, "cancelled");
+                        await updateShopifyOrderTag(from, "🪦 Order Cancelled");
                         const body = "Your order has been canceled";
                         await sendTextMessageBeta(phone_e164, body, { type: 'text', order_number: orderNumber });
 
@@ -490,7 +490,7 @@ const variables = {
                         const body = `للأسف طلبك اتشحن خلاص ومش بيتلغي أوتوماتيك، لو لسه حابب تلغي الطلب كلم خدمة العملاء من هنا.\n${link}`;
                         await sendTextMessageBeta(phone_e164, body, { type: 'text', order_number: orderNumber });
                     } else {
-                        await updateShopifyOrderTag(from, "Cancelled_Order");
+                        await updateShopifyOrderTag(from, "🪦 Order Cancelled");
                         const body = "الاوردر اتلغى";
                         await sendTextMessageBeta(phone_e164, body, { type: 'text', order_number: orderNumber });
                         // Notify support with current cancellation message
