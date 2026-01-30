@@ -1,5 +1,6 @@
 import db from "../firebaseAdmin.js";
 import { sendWhatsappTemplate } from "./sendWhatsapp.js";
+import { tagShopifyOrder } from "./updateShopify.js";
 
 // Normalize phone to E.164-like format: keep leading + and digits only
 function normalizeE164(raw) {
@@ -110,12 +111,15 @@ await db.collection(COL).add({
             // ✅ Live mode: send to all customers
             const result = await sendWhatsappTemplate(phone, "order_confirmation", variables);
             messageId = result?.messages?.[0]?.id;
+            // Tag Shopify order as pending confirmation (does NOT change Firebase status)
+            await tagShopifyOrder(order.id, "⚠ Confirmation Pending");
             console.log("✅ Sent WhatsApp confirmation to", phone);
         } else {
             // 🚧 Dev mode: only send to your test phone
             if (phone === testPhone) {
                 const result = await sendWhatsappTemplate(phone, "order_confirmation", variables);
                 messageId = result?.messages?.[0]?.id;
+                await tagShopifyOrder(order.id, "⚠ Confirmation Pending");
                 console.log("DEV MODE: Sent test WhatsApp to", phone);
             } else {
                 console.log("DEV MODE: Skipped sending WhatsApp to", phone);
