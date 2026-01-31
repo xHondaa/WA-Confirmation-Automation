@@ -112,16 +112,20 @@ await db.collection(COL).add({
             const result = await sendWhatsappTemplate(phone, "order_confirmation", variables);
             await updateShopifyOrderTag(phone, "⚠ Confirmation Pending");
             messageId = result?.messages?.[0]?.id;
-            // Tag Shopify order as pending confirmation (does NOT change Firebase status)
-            await tagShopifyOrder(order.id, "⚠ Confirmation Pending");
             console.log("✅ Sent WhatsApp confirmation to", phone);
+            // Tag Shopify order in background (don't await - prevents timeout)
+            tagShopifyOrder(order.id, "⚠ Confirmation Pending").catch(err =>
+                console.warn("⚠️ Failed to tag order:", err)
+            );
         } else {
             // 🚧 Dev mode: only send to your test phone
             if (phone === testPhone) {
                 const result = await sendWhatsappTemplate(phone, "order_confirmation", variables);
                 messageId = result?.messages?.[0]?.id;
-                await tagShopifyOrder(order.id, "⚠ Confirmation Pending");
                 console.log("DEV MODE: Sent test WhatsApp to", phone);
+                tagShopifyOrder(order.id, "⚠ Confirmation Pending").catch(err =>
+                    console.warn("⚠️ Failed to tag order:", err)
+                );
             } else {
                 console.log("DEV MODE: Skipped sending WhatsApp to", phone);
             }
