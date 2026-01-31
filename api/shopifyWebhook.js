@@ -112,54 +112,63 @@ await db.collection(COL).add({
         const isProd = process.env.MODE === "production";
         const testPhone = process.env.TEST_PHONE; // your number in E.164 format e.g. +201234567890
 
-        let messageId = null;
-        if (isProd) {
-            // ✅ Live mode: send to all customers
-            const result = await sendWhatsappTemplate(phone, "order_confirmation", variables);
-            messageId = result?.messages?.[0]?.id;
-            console.log("✅ Sent WhatsApp confirmation to", phone);
-            // Tag Shopify order in background (don't await - prevents timeout)
-            tagShopifyOrder(order.id, "⚠ Confirmation Pending").catch(err =>
-                console.warn("⚠️ Failed to tag order:", err)
-            );
-        } else {
-            // 🚧 Dev mode: only send to your test phone
-            if (phone === testPhone) {
+        // ✅ Respond to Shopify IMMEDIATELY to prevent timeout
+        res.status(200).send("OK");
+
+        // 🔄 Process everything else in the background (after response sent)
+        try {
+            let messageId = null;
+            if (isProd) {
+                // ✅ Live mode: send to all customers
                 const result = await sendWhatsappTemplate(phone, "order_confirmation", variables);
                 messageId = result?.messages?.[0]?.id;
-                console.log("DEV MODE: Sent test WhatsApp to", phone);
+                console.log("✅ Sent WhatsApp confirmation to", phone);
+                // Tag Shopify order in background (don't await - prevents timeout)
                 tagShopifyOrder(order.id, "⚠ Confirmation Pending").catch(err =>
                     console.warn("⚠️ Failed to tag order:", err)
                 );
             } else {
-                console.log("DEV MODE: Skipped sending WhatsApp to", phone);
-            }
-        }
-
-        // Update the confirmation entry with the message_id if available
-        if (messageId) {
-            try {
-                const snapshot = await db.collection(COL)
-                    .where("phone_e164", "==", phone_e164)
-                    .where("order_number", "==", orderNumber)
-                    .orderBy("confirmation_sent_at", "desc")
-                    .limit(1)
-                    .get();
-                
-                if (!snapshot.empty) {
-                    await snapshot.docs[0].ref.update({
-                        message_id: messageId,
-                        message_status: "sent"
-                    });
+                // 🚧 Dev mode: only send to your test phone
+                if (phone === testPhone) {
+                    const result = await sendWhatsappTemplate(phone, "order_confirmation", variables);
+                    messageId = result?.messages?.[0]?.id;
+                    console.log("DEV MODE: Sent test WhatsApp to", phone);
+                    tagShopifyOrder(order.id, "⚠ Confirmation Pending").catch(err =>
+                        console.warn("⚠️ Failed to tag order:", err)
+                    );
+                } else {
+                    console.log("DEV MODE: Skipped sending WhatsApp to", phone);
                 }
-            } catch (e) {
-                console.warn("⚠️ Failed to update message_id in confirmation:", e);
             }
-        }
 
-        res.status(200).send("OK");
+            // Update the confirmation entry with the message_id if available
+            if (messageId) {
+                try {
+                    const snapshot = await db.collection(COL)
+                        .where("phone_e164", "==", phone_e164)
+                        .where("order_number", "==", orderNumber)
+                        .orderBy("confirmation_sent_at", "desc")
+                        .limit(1)
+                        .get();
+
+                    if (!snapshot.empty) {
+                        await snapshot.docs[0].ref.update({
+                            message_id: messageId,
+                            message_status: "sent"
+                        });
+                    }
+                } catch (e) {
+                    console.warn("⚠️ Failed to update message_id in confirmation:", e);
+                }
+            }
+        } catch (bgError) {
+            console.error("❌ Background processing error:", bgError);
+        }
     } catch (error) {
         console.error("❌ Error in shopifyWebhook:", error);
-        res.status(500).send("Error");
+        // Only send error response if we haven't already responded
+        if (!res.headersSent) {
+            res.status(500).send("Error");
+        }
     }
 }
