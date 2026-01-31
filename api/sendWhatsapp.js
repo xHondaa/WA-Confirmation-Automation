@@ -1,6 +1,16 @@
 import axios from "axios";
 import db from "../firebaseAdmin.js";
 
+// Normalize phone to E.164 format (Egypt country code: +20)
+function normalizeE164(raw) {
+    if (!raw) return raw;
+    let s = String(raw).replace(/[^\d+]/g, "");
+    if (s.startsWith("+")) s = s.slice(1);
+    if (s.startsWith("0")) s = "20" + s.slice(1);
+    if (!s.startsWith("20")) s = "20" + s;
+    return "+" + s;
+}
+
 // Order parameters explicitly to match the template placeholders
 // Include parameter_name for Meta named variables support
 function getBodyParameters(templateName, variables) {
@@ -111,6 +121,7 @@ export async function sendWhatsappTemplate(to, templateName, variables = {}, oth
     }
 
     const toDigits = (to || '').replace(/[^0-9]/g, "");
+    const normalizedPhone = normalizeE164(to);
 
     const tmpl = {
         name: templateName,
@@ -141,7 +152,7 @@ export async function sendWhatsappTemplate(to, templateName, variables = {}, oth
         const messageId = response.data?.messages?.[0]?.id;
         const orderNumber = Number(variables?.orderid || variables?.order_number) || otherVariables?.orderid || null;
         await db.collection("whatsappMessages").add({
-            customer: toDigits,
+            customer: normalizedPhone,
             message_type: "template",
             template_name: templateName,
             variables: variables,

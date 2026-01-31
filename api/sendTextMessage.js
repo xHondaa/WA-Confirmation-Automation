@@ -1,6 +1,16 @@
 import fetch from "node-fetch";
 import db from "../firebaseAdmin.js";
 
+// Normalize phone to E.164 format (Egypt country code: +20)
+function normalizeE164(raw) {
+    if (!raw) return raw;
+    let s = String(raw).replace(/[^\d+]/g, "");
+    if (s.startsWith("+")) s = s.slice(1);
+    if (s.startsWith("0")) s = "20" + s.slice(1);
+    if (!s.startsWith("20")) s = "20" + s;
+    return "+" + s;
+}
+
 // Update last_message_at timestamp on orders collection for pagination/sorting
 async function updateOrderLastMessageAt(orderNumber) {
     if (!orderNumber) return;
@@ -29,6 +39,9 @@ export default async function sendTextMessage(req, res) {
             return res.status(400).json({ error: 'Phone and message required' });
         }
 
+        const normalizedPhone = normalizeE164(phone);
+        const phoneDigits = normalizedPhone.replace(/[^0-9]/g, "");
+
         // Send message via WhatsApp API
         const response = await fetch(`https://graph.facebook.com/v21.0/${process.env.WHATSAPP_PHONE_ID}/messages`, {
             method: 'POST',
@@ -38,7 +51,7 @@ export default async function sendTextMessage(req, res) {
             },
             body: JSON.stringify({
                 messaging_product: 'whatsapp',
-                to: phone,
+                to: phoneDigits,
                 type: 'text',
                 text: {
                     body: message
@@ -57,7 +70,7 @@ export default async function sendTextMessage(req, res) {
         // Save to Firebase
         const orderNum = order_number ? Number(order_number) : null;
         await db.collection("whatsappMessages").add({
-            customer: phone,
+            customer: normalizedPhone,
             message_type: "text",
             text: message,
             direction: "outbound",
