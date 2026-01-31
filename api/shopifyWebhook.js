@@ -2,11 +2,17 @@ import db from "../firebaseAdmin.js";
 import { sendWhatsappTemplate } from "./sendWhatsapp.js";
 import { tagShopifyOrder } from "./updateShopify.js";
 
-// Normalize phone to E.164-like format: keep leading + and digits only
+// Normalize phone to E.164 format (Egypt country code: +20)
 function normalizeE164(raw) {
     if (!raw) return raw;
-    const s = String(raw).replace(/[^\d+]/g, "");
-    return s.startsWith("+") ? s : `+${s}`;
+    let s = String(raw).replace(/[^\d+]/g, "");
+    // Remove leading + for processing
+    if (s.startsWith("+")) s = s.slice(1);
+    // Egyptian numbers: if starts with 0, replace with 20
+    if (s.startsWith("0")) s = "20" + s.slice(1);
+    // If doesn't start with country code, assume Egypt (20)
+    if (!s.startsWith("20")) s = "20" + s;
+    return "+" + s;
 }
 
 export default async function handler(req, res) {
