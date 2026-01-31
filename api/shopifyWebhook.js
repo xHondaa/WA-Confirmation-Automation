@@ -110,7 +110,6 @@ await db.collection(COL).add({
         if (isProd) {
             // ✅ Live mode: send to all customers
             const result = await sendWhatsappTemplate(phone, "order_confirmation", variables);
-            await updateShopifyOrderTag(phone, "⚠ Confirmation Pending");
             messageId = result?.messages?.[0]?.id;
             console.log("✅ Sent WhatsApp confirmation to", phone);
             // Tag Shopify order in background (don't await - prevents timeout)
