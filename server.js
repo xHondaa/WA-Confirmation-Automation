@@ -29,6 +29,18 @@ app.get("/api/proxyImage", (req, res) => proxyImage(req, res));
 // Health check
 app.get("/healthz", (_req, res) => res.status(200).send("ok"));
 
+// Error handler - suppress "request aborted" errors (Shopify timeout during cold start)
+app.use((err, req, res, next) => {
+  if (err.type === 'request.aborted') {
+    console.log('ℹ️ Request aborted by client (likely Shopify timeout) - processing continues in background');
+    return;
+  }
+  console.error('Server error:', err);
+  if (!res.headersSent) {
+    res.status(500).send('Internal Server Error');
+  }
+});
+
 const port = process.env.PORT || 3000;
 app.listen(port, () => {
   console.log(`Server listening on port ${port}`);

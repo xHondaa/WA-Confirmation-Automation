@@ -120,8 +120,8 @@ export async function sendWhatsappTemplate(to, templateName, variables = {}, oth
         components.push({ type: "body", parameters: bodyParams });
     }
 
-    const toDigits = (to || '').replace(/[^0-9]/g, "");
     const normalizedPhone = normalizeE164(to);
+    const phoneDigits = normalizedPhone.replace(/[^0-9]/g, ""); // Remove + for API
 
     const tmpl = {
         name: templateName,
@@ -133,7 +133,7 @@ export async function sendWhatsappTemplate(to, templateName, variables = {}, oth
 
     const data = {
         messaging_product: "whatsapp",
-        to: toDigits,
+        to: phoneDigits,
         type: "template",
         template: tmpl,
     };
@@ -174,10 +174,10 @@ export async function sendWhatsappTemplate(to, templateName, variables = {}, oth
     try {
         if (isBeta()) {
             const tester = getTestPhoneDigits();
-            if (tester && tester !== toDigits) {
+            if (tester && tester !== phoneDigits) {
                 const summaryLines = [
                     "[BETA OUTGOING COPY]",
-                    `To: +${toDigits}`,
+                    `To: +${phoneDigits}`,
                     variables?.name ? `Name: ${variables.name}` : null,
                     (variables?.orderid || variables?.order_number) ? `Order: ${variables.orderid || variables.order_number}` : null,
                     `Template: ${templateName}`,
