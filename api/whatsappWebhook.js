@@ -184,7 +184,7 @@ export default async function handler(req, res) {
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
                                 chat_id: process.env.TELEGRAM_CHAT_ID,
-                                text: `🔔 New WhatsApp Message\n\nFrom: +${customerPhone}\n${orderInfo}\nMessage: ${messagePreview}\n\nDashboard: https://lazybut-wa-dashboard.vercel.app/dashboard`,
+                                text: `🔔 New WhatsApp Message\n\nFrom: +${from}\n${orderInfo}\nMessage: ${messagePreview}\n\nDashboard: https://lazybut-wa-dashboard.vercel.app/dashboard`,
                                 parse_mode: 'HTML'
                             })
                         });
