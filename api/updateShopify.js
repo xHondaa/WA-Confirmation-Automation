@@ -132,8 +132,12 @@ export async function updateShopifyOrderTag(phone, tag) {
       .filter(Boolean);
     const nextTags = Array.from(new Set([...existingTags, tag])).join(", ");
 
+    console.log(`📋 Existing tags: ${existingTags.join(", ") || "(none)"}`);
+    console.log(`➕ Adding tag: "${tag}"`);
+    console.log(`📝 New tags will be: ${nextTags}`);
+
     // 4) Update order with merged tags (idempotent: re-adding same tag is a no-op)
-    await axios.put(
+    const putRes = await axios.put(
       `https://${shop}/admin/api/2024-07/orders/${order.id}.json`,
       { order: { id: Number(order.id), tags: nextTags } },
       {
@@ -141,8 +145,9 @@ export async function updateShopifyOrderTag(phone, tag) {
       }
     );
 
+    console.log(`✅ Shopify API response status: ${putRes.status}`);
+    console.log(`✅ Shopify returned tags: ${putRes.data?.order?.tags || "(not returned)"}`);
     console.log(`✅ Tagged Shopify order ${order.id} with "${tag}"`);
-    console.log(`📝 New tags: ${nextTags}`);
 
     // 5) Mark confirmation as confirmed
     await docRef.update({
