@@ -43,7 +43,7 @@ async function sendTextMessageBeta(to, body, meta = {}) {
     try {
         const messageId = response?.messages?.[0]?.id;
         await db.collection("whatsappMessages").add({
-            customer: originalToDigits,
+            customer: originalToDigits.replace('+', ''),
             message_type: "text",
             text: body,
             direction: "outbound",
@@ -178,17 +178,24 @@ export default async function handler(req, res) {
                                     `[${message.type}]`)));
 
                     const orderInfo = orderNumber ? `Order: #${orderNumber}` : 'No order assigned';
-                    try {
-                        await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+                    // Split comma-separated chat IDs and send to each
+                    const chatIds = process.env.TELEGRAM_CHAT_ID.split(',').map(id => id.trim());
+
+                    const notificationPromises = chatIds.map(chatId =>
+                        fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
-                                chat_id: process.env.TELEGRAM_CHAT_ID,
+                                chat_id: chatId,
                                 text: `🔔 New WhatsApp Message\n\nFrom: +${from}\n${orderInfo}\nMessage: ${messagePreview}\n\nDashboard: https://lazybut-wa-dashboard.vercel.app/dashboard`,
                                 parse_mode: 'HTML'
                             })
-                        });
-                        console.log('✅ Telegram notification sent');
+                        })
+                    );
+
+                    try {
+                        await Promise.all(notificationPromises);
+                        console.log(`✅ Telegram notifications sent to ${chatIds.length} recipient(s)`);
                     } catch (error) {
                         console.error('Failed to send Telegram notification:', error);
                     }
