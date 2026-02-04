@@ -77,6 +77,8 @@ export async function updateShopifyOrderTag(phone, tag) {
   const normPhone = normalizePhone(phone);
   const COL = process.env.CONFIRMATIONS_COLLECTION || "confirmations"; // configurable collection name
 
+  console.log(`🔍 Looking for pending confirmation for phone: ${normPhone}`);
+
   try {
     // 1) Find newest pending confirmation doc for this phone
     const q = db
@@ -88,9 +90,12 @@ export async function updateShopifyOrderTag(phone, tag) {
 
     const snap = await q.get();
     if (snap.empty) {
-      console.log(`No pending confirmation found for ${normPhone}`);
+      console.log(`❌ No pending confirmation found for ${normPhone}`);
       return;
     }
+
+    const docData = snap.docs[0].data();
+    console.log(`✅ Found pending order: ${docData.order_id} (order_number: ${docData.order_number})`);
 
     const docRef = snap.docs[0].ref;
 
@@ -136,7 +141,8 @@ export async function updateShopifyOrderTag(phone, tag) {
       }
     );
 
-    console.log(`Tagged order ${order.id} with ${tag}`);
+    console.log(`✅ Tagged Shopify order ${order.id} with "${tag}"`);
+    console.log(`📝 New tags: ${nextTags}`);
 
     // 5) Mark confirmation as confirmed
     await docRef.update({
