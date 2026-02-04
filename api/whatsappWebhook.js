@@ -182,7 +182,6 @@ export default async function handler(req, res) {
                                 `[${message.type}]`)));
 
                 const orderInfo = orderNumber ? `Order: #${orderNumber}` : 'No order assigned';
-
                 try {
                     await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
                         method: 'POST',
