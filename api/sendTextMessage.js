@@ -70,7 +70,7 @@ export default async function sendTextMessage(req, res) {
         // Save to Firebase
         const orderNum = order_number ? Number(order_number) : null;
         await db.collection("whatsappMessages").add({
-            customer: normalizedPhone,
+            customer: normalizedPhone.replace('+', ''),
             message_type: "text",
             text: message,
             direction: "outbound",
