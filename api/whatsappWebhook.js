@@ -168,35 +168,35 @@ export default async function handler(req, res) {
 
                 // Update last_message_at on orders collection
                 await updateOrderLastMessageAt(orderNumber);
+                // Send Telegram notification for inbound messages
+                if (message.type === 'text' || message.type === 'button' || message.type === 'image' || message.type === 'audio' || message.type === 'video') {
+                    const messagePreview = message.text?.body ||
+                        message.button?.text ||
+                        (message.type === 'image' ? '📷 Image' :
+                            (message.type === 'video' ? '🎥 Video' :
+                                (message.type === 'audio' ? '🎤 Voice message' :
+                                    `[${message.type}]`)));
+
+                    const orderInfo = orderNumber ? `Order: #${orderNumber}` : 'No order assigned';
+                    try {
+                        await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                chat_id: process.env.TELEGRAM_CHAT_ID,
+                                text: `🔔 New WhatsApp Message\n\nFrom: +${customerPhone}\n${orderInfo}\nMessage: ${messagePreview}\n\nDashboard: https://lazybut-wa-dashboard.vercel.app/dashboard`,
+                                parse_mode: 'HTML'
+                            })
+                        });
+                        console.log('✅ Telegram notification sent');
+                    } catch (error) {
+                        console.error('Failed to send Telegram notification:', error);
+                    }
+                }
             } catch (logErr) {
                 console.warn("⚠️ Failed to log inbound message:", logErr);
             }
 
-            // Send Telegram notification for inbound messages
-            if (message.type === 'text' || message.type === 'button' || message.type === 'image' || message.type === 'audio' || message.type === 'video') {
-                const messagePreview = message.text?.body ||
-                    message.button?.text ||
-                    (message.type === 'image' ? '📷 Image' :
-                        (message.type === 'video' ? '🎥 Video' :
-                            (message.type === 'audio' ? '🎤 Voice message' :
-                                `[${message.type}]`)));
-
-                const orderInfo = orderNumber ? `Order: #${orderNumber}` : 'No order assigned';
-                try {
-                    await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            chat_id: process.env.TELEGRAM_CHAT_ID,
-                            text: `🔔 New WhatsApp Message\n\nFrom: +${customerPhone}\n${orderInfo}\nMessage: ${messagePreview}\n\nDashboard: https://lazybut-wa-dashboard.vercel.app/dashboard`,
-                            parse_mode: 'HTML'
-                        })
-                    });
-                    console.log('✅ Telegram notification sent');
-                } catch (error) {
-                    console.error('Failed to send Telegram notification:', error);
-                }
-            }
 
             // BETA: mirror incoming to tester
             try {
