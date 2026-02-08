@@ -1,10 +1,97 @@
-import db from "../firebaseAdmin.js"; // ✅ Admin SDK
+import db, { storage } from "../firebaseAdmin.js"; // ✅ Admin SDK
 import axios from "axios";
 import { updateShopifyOrderTag } from "./updateShopify.js";
 import { sendWhatsappTemplate } from "./sendWhatsapp.js";
 
 // WhatsApp Graph API base
 const WHATSAPP_API_URL = `https://graph.facebook.com/v23.0/${process.env.WHATSAPP_PHONE_ID}/messages`;
+
+// Media types that WhatsApp can send
+const MEDIA_TYPES = ['image', 'audio', 'video', 'document', 'sticker'];
+
+// Download media from WhatsApp and upload to Firebase Storage
+async function downloadAndStoreMedia(mediaId, mediaType, from) {
+    try {
+        // Step 1: Get media URL from WhatsApp
+        const mediaInfoRes = await axios.get(
+            `https://graph.facebook.com/v23.0/${mediaId}`,
+            {
+                headers: { Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}` }
+            }
+        );
+
+        const mediaUrl = mediaInfoRes.data.url;
+        const mimeType = mediaInfoRes.data.mime_type || 'application/octet-stream';
+
+        if (!mediaUrl) {
+            console.warn("⚠️ No media URL returned for media ID:", mediaId);
+            return null;
+        }
+
+        // Step 2: Download media from WhatsApp's servers
+        const mediaRes = await axios.get(mediaUrl, {
+            headers: { Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}` },
+            responseType: 'arraybuffer'
+        });
+
+        // Step 3: Determine file extension from mime type
+        const extMap = {
+            'image/jpeg': 'jpg',
+            'image/png': 'png',
+            'image/webp': 'webp',
+            'image/gif': 'gif',
+            'audio/ogg': 'ogg',
+            'audio/mpeg': 'mp3',
+            'audio/mp4': 'mp4',
+            'audio/aac': 'aac',
+            'video/mp4': 'mp4',
+            'video/3gpp': '3gp',
+            'application/pdf': 'pdf',
+            'application/vnd.ms-excel': 'xls',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+            'application/msword': 'doc',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+        };
+        const ext = extMap[mimeType] || mimeType.split('/')[1] || 'bin';
+
+        // Step 4: Generate unique filename
+        const timestamp = Date.now();
+        const filename = `whatsapp-media/${from}/${mediaType}_${timestamp}_${mediaId}.${ext}`;
+
+        // Step 5: Upload to Firebase Storage
+        const bucket = storage.bucket();
+        const file = bucket.file(filename);
+
+        await file.save(Buffer.from(mediaRes.data), {
+            metadata: {
+                contentType: mimeType,
+                metadata: {
+                    source: 'whatsapp',
+                    mediaId: mediaId,
+                    from: from,
+                    uploadedAt: new Date().toISOString()
+                }
+            }
+        });
+
+        // Step 6: Make the file publicly readable and get URL
+        await file.makePublic();
+        const publicUrl = `https://storage.googleapis.com/${bucket.name}/${filename}`;
+
+        console.log(`✅ Media stored: ${publicUrl}`);
+
+        return {
+            url: publicUrl,
+            filename,
+            mimeType,
+            mediaId,
+            size: mediaRes.data.byteLength
+        };
+    } catch (error) {
+        console.error("❌ Failed to download/store media:", error.response?.data || error.message);
+        return null;
+    }
+}
 
 const isBeta = () => String(process.env.BETA_TESTING || "").toLowerCase() === "true";
 const getTestPhoneDigits = () => (process.env.TEST_PHONE || "").replace(/[^0-9]/g, "");
@@ -154,6 +241,18 @@ export default async function handler(req, res) {
                     console.warn("⚠️ Could not fetch order_number for inbound log:", e);
                 }
 
+                // Check if message contains media and download/store it
+                let mediaData = null;
+                const messageType = message.type;
+                if (MEDIA_TYPES.includes(messageType)) {
+                    const mediaObj = message[messageType]; // e.g., message.image, message.audio, etc.
+                    const mediaId = mediaObj?.id;
+                    if (mediaId) {
+                        console.log(`📥 Downloading ${messageType} media (ID: ${mediaId}) from ${from}`);
+                        mediaData = await downloadAndStoreMedia(mediaId, messageType, from);
+                    }
+                }
+
                 await db.collection("whatsappMessages").add({
                     customer: from,
                     message_type: message.type || null,
@@ -164,6 +263,12 @@ export default async function handler(req, res) {
                     direction: "inbound",
                     order_number: orderNumber,
                     timestamp: new Date().toISOString(),
+                    // Media fields (null if not a media message)
+                    media_url: mediaData?.url || null,
+                    media_filename: mediaData?.filename || null,
+                    media_mime_type: mediaData?.mimeType || null,
+                    media_size: mediaData?.size || null,
+                    media_id: mediaData?.mediaId || null,
                 });
 
                 // Update last_message_at on orders collection
