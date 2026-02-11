@@ -126,8 +126,12 @@ export async function updateShopifyOrderTag(phone, tag) {
     const order = getRes.data?.order;
     if (!order) throw new Error("shopify_order_not_found");
 
-    // Tags to remove when updating status
-    const tagsToRemove = ["⚠ Confirmation Pending"];
+    // Status tags to remove when updating (removes old status before adding new one)
+    const tagsToRemove = [
+      "⚠ Confirmation Pending",
+      "✅ Order Confirmed",
+      "🪦 Order Cancelled"
+    ];
 
     const existingTags = (order.tags || "")
       .split(",")
