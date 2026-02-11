@@ -126,13 +126,20 @@ export async function updateShopifyOrderTag(phone, tag) {
     const order = getRes.data?.order;
     if (!order) throw new Error("shopify_order_not_found");
 
+    // Tags to remove when updating status
+    const tagsToRemove = ["⚠ Confirmation Pending"];
+
     const existingTags = (order.tags || "")
       .split(",")
       .map((t) => t.trim())
       .filter(Boolean);
-    const nextTags = Array.from(new Set([...existingTags, tag])).join(", ");
+
+    // Remove old status tags and add new tag
+    const filteredTags = existingTags.filter(t => !tagsToRemove.includes(t));
+    const nextTags = Array.from(new Set([...filteredTags, tag])).join(", ");
 
     console.log(`📋 Existing tags: ${existingTags.join(", ") || "(none)"}`);
+    console.log(`🗑️ Removing tags: ${tagsToRemove.filter(t => existingTags.includes(t)).join(", ") || "(none)"}`);
     console.log(`➕ Adding tag: "${tag}"`);
     console.log(`📝 New tags will be: ${nextTags}`);
 
