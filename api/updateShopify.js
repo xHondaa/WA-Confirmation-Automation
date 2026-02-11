@@ -126,13 +126,24 @@ export async function updateShopifyOrderTag(phone, tag) {
     const order = getRes.data?.order;
     if (!order) throw new Error("shopify_order_not_found");
 
+    // Status tags to remove when updating (removes old status before adding new one)
+    const tagsToRemove = [
+      "⚠ Confirmation Pending",
+      "✅ Order Confirmed",
+      "🪦 Order Cancelled"
+    ];
+
     const existingTags = (order.tags || "")
       .split(",")
       .map((t) => t.trim())
       .filter(Boolean);
-    const nextTags = Array.from(new Set([...existingTags, tag])).join(", ");
+
+    // Remove old status tags and add new tag
+    const filteredTags = existingTags.filter(t => !tagsToRemove.includes(t));
+    const nextTags = Array.from(new Set([...filteredTags, tag])).join(", ");
 
     console.log(`📋 Existing tags: ${existingTags.join(", ") || "(none)"}`);
+    console.log(`🗑️ Removing tags: ${tagsToRemove.filter(t => existingTags.includes(t)).join(", ") || "(none)"}`);
     console.log(`➕ Adding tag: "${tag}"`);
     console.log(`📝 New tags will be: ${nextTags}`);
 
@@ -149,13 +160,19 @@ export async function updateShopifyOrderTag(phone, tag) {
     console.log(`✅ Shopify returned tags: ${putRes.data?.order?.tags || "(not returned)"}`);
     console.log(`✅ Tagged Shopify order ${order.id} with "${tag}"`);
 
-    // 5) Mark confirmation as confirmed
+    // 5) Update Firebase status based on the tag
+    const isCancellation = tag.includes("Cancelled") || tag.includes("Cancel");
+    const newStatus = isCancellation ? "cancelled" : "confirmed";
+    const timestampField = isCancellation ? "cancelled_at" : "confirmed_at";
+
     await docRef.update({
-      status: "confirmed",
-      confirmed_at: new Date(),
+      status: newStatus,
+      [timestampField]: new Date(),
       last_update_at: new Date(),
       shopify_update: { ok: true, at: new Date(), action: "tag_added", tag },
     });
+
+    console.log(`📝 Firebase status updated to: ${newStatus}`);
   } catch (error) {
     console.error("Error updating Shopify order tag:", error.response?.data || error.message || error);
 
