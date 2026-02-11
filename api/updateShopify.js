@@ -160,13 +160,19 @@ export async function updateShopifyOrderTag(phone, tag) {
     console.log(`✅ Shopify returned tags: ${putRes.data?.order?.tags || "(not returned)"}`);
     console.log(`✅ Tagged Shopify order ${order.id} with "${tag}"`);
 
-    // 5) Mark confirmation as confirmed
+    // 5) Update Firebase status based on the tag
+    const isCancellation = tag.includes("Cancelled") || tag.includes("Cancel");
+    const newStatus = isCancellation ? "cancelled" : "confirmed";
+    const timestampField = isCancellation ? "cancelled_at" : "confirmed_at";
+
     await docRef.update({
-      status: "confirmed",
-      confirmed_at: new Date(),
+      status: newStatus,
+      [timestampField]: new Date(),
       last_update_at: new Date(),
       shopify_update: { ok: true, at: new Date(), action: "tag_added", tag },
     });
+
+    console.log(`📝 Firebase status updated to: ${newStatus}`);
   } catch (error) {
     console.error("Error updating Shopify order tag:", error.response?.data || error.message || error);
 
