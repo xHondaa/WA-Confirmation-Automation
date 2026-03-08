@@ -277,8 +277,8 @@ export default async function handler(req, res) {
                 if (message.type === 'text' || message.type === 'button' || message.type === 'image' || message.type === 'audio' || message.type === 'video') {
                     const messagePreview = message.text?.body ||
                         message.button?.text ||
-                        (message.type === 'image' ? '📷 Image' :
-                            (message.type === 'video' ? '🎥 Video' :
+                        (message.type === 'image' ? mediaData?.url || '📷 Image' :
+                            (message.type === 'video' ? mediaData?.url || '🎥 Video' :
                                 (message.type === 'audio' ? '🎤 Voice message' :
                                     `[${message.type}]`)));
 
